@@ -9,7 +9,7 @@ A simple Office Add-in training project for Excel and Word, with lesson modules 
 Make sure you have:
 
 - Node.js and npm installed
-- Microsoft Excel (and optionally Word) installed for testing
+- Microsoft Excel, Word and Powerpoint installed for testing
 
 ### 2. Install dependencies
 
@@ -41,7 +41,7 @@ npm run start:ppt
 - [manifest.xml](manifest.xml) — the add-in manifest
 - [excel_training/src/taskpane/taskpane.html](excel_training/src/taskpane/taskpane.html) — the main task pane shell and lesson list
 - [excel_training/assets/lessons](excel_training/assets/lessons) — lesson JavaScript files loaded dynamically at runtime
-- [excel_training/src/taskpane/lessons](excel_training/src/taskpane/lessons) — the source location used for lesson modules in the project layout
+
 
 ## Dependencies
 

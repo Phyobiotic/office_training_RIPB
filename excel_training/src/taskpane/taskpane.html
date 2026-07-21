@@ -9,37 +9,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
-<!--
-  ==========================================================================
-  TASK PANE — shell + lesson engine
-  ==========================================================================
-  This file no longer contains any lesson content. It's a shell that:
-    1. Renders the lesson list from LESSONS below
-    2. When a "ready" lesson is opened, dynamically loads lessons/<id>.js
-       (a plain script — see any file in lessons/ for the exact shape)
-    3. Renders whatever that module exports via the generic Tutorial /
-       Assignment engine (drawLessonShell / renderMode)
-
-  ADDING A NEW LESSON:
-    1. Copy lessons/xl-data.js as a starting point
-    2. Change the title, hook, brief, setup(), and tasks for both
-       `tutorial` and `assignment`
-    3. Save it as lessons/<your-id>.js
-    4. Add one line to the LESSONS array below: { id:"<your-id>", title:"...", ready:true }
-    5. Make sure your webpack config serves the lessons/ folder — see
-       README.md, this is a one-time setup step, not per-lesson.
-
-  A lesson module (not the capstone) looks like:
-    window.LESSON_MODULES["xl-data"] = {
-      title: "Entering and Managing Data",
-      tutorial:   { hook, brief, doneMsg, setup: async()=>{...}, tasks:[{ref,text,hint,check:async()=>bool}] },
-      assignment: { hook, brief, doneMsg, setup: async()=>{...}, tasks:[...] }
-    };
-  The capstone (Founders' Day) sets `isCapstone:true` and only fills in
-  `assignment` — see lessons/founders-day.js.
-  ==========================================================================
--->
-
 <style>
   :root{
     --paper:#FBFAF6; --ink:#16242B; --muted:#6E7A77;
@@ -116,6 +85,9 @@
   .teach b{font-weight:600}
   .teach code{background:#E4EDE9;padding:0 3px;font-family:"IBM Plex Mono",monospace;font-size:11px}
   .teach .keys{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink)}
+  
+  .load-reminder{font-size:11px;color:var(--muted);margin-bottom:4px}
+  
   .stepresult{min-height:20px;font-size:12.5px;font-family:"Space Grotesk",sans-serif;color:var(--good);margin-top:4px}
   .stepresult.ok{padding:8px 10px;background:var(--good);color:#fff}
   .done-banner{margin-top:10px;padding:10px;font-family:"Space Grotesk",sans-serif;font-size:12.5px;background:var(--ink);color:var(--paper);display:none}
@@ -127,15 +99,15 @@
 
 <script>
 const LESSONS = [
-  { id:"foundations",   title:"Meet Your Office Toolkit",              ready:false },
+  { id:"foundations",   title:"Meet Your Office Toolkit",             ready:false },
   { id:"word-edit",      title:"Word: Writing and Editing Text",              ready:true },
   { id:"word-format",    title:"Word: Formatting and Paragraphs",             ready:false },
   { id:"word-tables",    title:"Word: Tables and Objects",                    ready:false },
   { id:"word-output",    title:"Word: Finishing and Printing a Document",     ready:false },
-  { id:"xl-data",        title:"Excel: Entering and Managing Data",            ready:true  },
+  { id:"xl-data",        title:"Excel: Entering and Managing Data",           ready:true  },
   { id:"xl-format",      title:"Excel: Formatting Cells and Sheet Structure",  ready:true  },
-  { id:"xl-formulas",    title:"Excel: Formulas & Functions",                  ready:true  },
-  { id:"xl-charts",      title:"Excel: Charts and Outputs",                    ready:true  },
+  { id:"xl-formulas",    title:"Excel: Formulas & Functions",                 ready:true  },
+  { id:"xl-charts",      title:"Excel: Charts and Outputs",                   ready:true  },
   { id:"founders-day",   title:"Excel: Founders' Day Final Assignment",      ready:true  },
   { id:"ppt-build",      title:"PowerPoint: Building Your Deck",                    ready:true },
   { id:"ppt-text",       title:"PowerPoint: Slide Text and Formatting",             ready:false },
@@ -145,8 +117,8 @@ const LESSONS = [
 
 let currentHost = null;
 let activeMode = "tutorial";
-let renderToken = 0;          // bumped every renderMode() call — stale async callbacks check this before touching the DOM
-let liveHandlerInfo = null;   // { context, handlers:[EventHandlerResult,...] } for the currently-registered live-checking handlers
+let renderToken = 0;          
+let liveHandlerInfo = null;   
 let debounceTimer = null;
 window.LESSON_MODULES = window.LESSON_MODULES || {};
 
@@ -160,8 +132,8 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g,ch=>({"&":"&amp;","<"
 
 /* ---------------- lesson list view ---------------- */
 function renderLessonList(){
-  renderToken++;            // invalidate whatever lesson/mode was active — do this FIRST, synchronously
-  teardownLiveChecking();   // stop the Excel-side handlers running in the background; token guard covers the gap either way
+  renderToken++;            
+  teardownLiveChecking();   
 
   const pane = document.getElementById("pane");
   pane.innerHTML = "";
@@ -234,11 +206,7 @@ function renderMode(data, container, mode){
 }
 
 /* ============================================================
-   TUTORIAL ENGINE — a stepper. Each step is self-contained:
-   its own load state, its own explanation, its own single check.
-   Steps do NOT share a workbook state — every step's "Load this
-   step" wipes and re-seeds, because each one teaches one mechanic
-   in isolation.
+   TUTORIAL ENGINE
    ============================================================ */
 async function renderTutorial(data, container){
   renderToken++;
@@ -266,22 +234,39 @@ async function renderTutorial(data, container){
       </div>`));
     stepWrap.appendChild(el(`<h3 class="steptitle">${escapeHtml(step.title)}</h3>`));
     stepWrap.appendChild(el(`<div class="teach">${step.teach}</div>`));
+    
+    if(stepIdx > 0){
+      stepWrap.appendChild(el(`<div class="load-reminder">You must load this step for auto-checking to happen:</div>`));
+    }
     stepWrap.appendChild(el(`<button class="block" id="btnStepLoad">Load this step</button>`));
-    stepWrap.appendChild(el(`
-      <div class="livebar" id="liveBar"><span class="dot" id="liveDot"></span><span id="liveLabel">Try it — I'll check automatically</span>
-        <button id="btnStepCheck" style="margin-left:auto;font-size:10.5px;padding:3px 7px">Check now</button></div>`));
+    stepWrap.appendChild(el(`<div class="livebar" id="liveBar" style="border:0;background:none;padding:0;margin:0 0 10px;display:block"><span class="dot" id="liveDot" style="display:none"></span><span id="liveLabel">Checking for changes...</span></div>`));
     stepWrap.appendChild(el(`<div class="stepresult" id="stepResult"></div>`));
     stepWrap.appendChild(el(`<div class="status" id="statusMsg"></div>`));
 
     document.getElementById("stepPrev").onclick = async ()=>{ if(stepIdx>0){ stepIdx--; await teardownLiveChecking(); drawStep(); } };
     document.getElementById("stepNext").onclick = async ()=>{ if(stepIdx<steps.length-1){ stepIdx++; await teardownLiveChecking(); drawStep(); } };
 
+    let stepLoaded = false;
+
     document.getElementById("btnStepLoad").onclick = async ()=>{
       setStatus("Loading…");
-      try{ await step.setup(); setStatus("Loaded — now try it in the sheet."); markStep(false); await runStepCheck(); }
-      catch(err){ setStatus("Couldn't load: "+err.message, true); }
+      try{
+        await step.setup();
+        setStatus("Loaded — now try it in the sheet.");
+        markStep(false);
+        await runStepCheck();
+        if(!stepLoaded){
+          await registerLiveChecking(()=>{ if(myToken===renderToken) runStepCheck(); }, myToken);
+          stepLoaded = true;
+        }
+      }catch(err){ setStatus("Couldn't load: "+err.message, true); }
     };
-    document.getElementById("btnStepCheck").onclick = runStepCheck;
+
+    if(stepIdx === 0){
+      await registerLiveChecking(()=>{ if(myToken===renderToken) runStepCheck(); }, myToken);
+      stepLoaded = true;
+      runStepCheck();
+    }
 
     async function runStepCheck(){
       if(myToken !== renderToken) return;
@@ -296,16 +281,13 @@ async function renderTutorial(data, container){
       res.className = "stepresult " + (ok ? "ok" : "");
       res.textContent = ok ? "✓ " + (step.done || "Got it — that's the move.") : "";
     }
-
-    await registerLiveChecking(()=>{ if(myToken===renderToken) runStepCheck(); }, myToken);
   }
 
   drawStep();
 }
 
 /* ============================================================
-   ASSIGNMENT ENGINE — one scenario, one load, full checklist.
-   (This is the original renderMode, unchanged in behaviour.)
+   ASSIGNMENT ENGINE
    ============================================================ */
 function renderAssignment(data, container){
   renderToken++;
@@ -315,10 +297,11 @@ function renderAssignment(data, container){
   container.innerHTML = "";
   container.appendChild(el(`<p class="sub">${escapeHtml(data.hook)}</p>`));
   container.appendChild(el(`<div class="brief">${escapeHtml(data.brief)}</div>`));
+  
+  // Added load-reminder note above the button
+  container.appendChild(el(`<div class="load-reminder">You must load starter data for auto-checking to happen:</div>`));
   container.appendChild(el(`<button class="block" id="btnSetup">Load starter data</button>`));
-  container.appendChild(el(`
-    <div class="livebar" id="liveBar"><span class="dot" id="liveDot"></span><span id="liveLabel">Watching for changes…</span>
-      <button id="btnCheck" style="margin-left:auto;font-size:10.5px;padding:3px 7px">Check now</button></div>`));
+  container.appendChild(el(`<div class="livebar" id="liveBar" style="border:0;background:none;padding:0;margin:0 0 10px;display:block"><span class="dot" id="liveDot" style="display:none"></span><span id="liveLabel">Checking for changes...</span></div>`));
   container.appendChild(el(`<div class="prog-label" id="progText">0 of ${data.tasks.length} done</div>`));
   container.appendChild(el(`<div class="prog-track"><div class="prog-fill" id="progFill"></div></div>`));
   const list = el(`<ol class="tasks" id="taskList"></ol>`);
@@ -337,7 +320,6 @@ function renderAssignment(data, container){
 
   async function runAllChecks(){
     if(myToken !== renderToken) return;
-    setStatus("Checking…");
     let done = 0;
     for(let i=0;i<data.tasks.length;i++){
       let ok = false;
@@ -350,21 +332,40 @@ function renderAssignment(data, container){
     document.getElementById("progText").textContent = `${done} of ${data.tasks.length} done`;
     document.getElementById("progFill").style.width = (done/data.tasks.length*100)+"%";
     document.getElementById("doneBanner").classList.toggle("show", done===data.tasks.length);
-    setStatus(done===data.tasks.length ? "All done." : "Checked — keep going.");
+    
+    // Smoothly update status text without calling state hooks that flicker
+    if (done === data.tasks.length) {
+      setStatus("All tasks complete!");
+    } else {
+      setStatus("Checked — keep going.");
+    }
   }
-  function debouncedRecheck(){ clearTimeout(debounceTimer); debounceTimer = setTimeout(runAllChecks, 700); }
+
+  function debouncedRecheck(){ 
+    clearTimeout(debounceTimer); 
+    const delayMs = currentHost === "PowerPoint" ? 200 : currentHost === "Word" ? 300 : 700; 
+    debounceTimer = setTimeout(runAllChecks, delayMs); 
+  }
+
+  let assignmentLoaded = false;
 
   document.getElementById("btnSetup").onclick = async ()=>{
     setStatus("Loading starter data…");
-    try{ await data.setup(); setStatus("Starter data loaded."); await runAllChecks(); }
+    try{ 
+      await data.setup(); 
+      setStatus("Starter data loaded — now complete the tasks below."); 
+      await runAllChecks(); 
+      
+      // Start polling and event handlers ONLY after clicking "Load starter data"
+      if(!assignmentLoaded){
+        await registerLiveChecking(debouncedRecheck, myToken);
+        assignmentLoaded = true;
+      }
+    }
     catch(err){ setStatus("Couldn't load starter data: "+err.message, true); }
   };
-  document.getElementById("btnCheck").onclick = runAllChecks;
-
-  registerLiveChecking(debouncedRecheck, myToken);
 }
-
-/* ---------------- live checking: host-dispatched, event handlers + a safety-net poll ---------------- */
+/* ---------------- live checking ---------------- */
 async function registerLiveChecking(onFire, myToken){
   try{
     if(currentHost === "Word") await registerWordLiveChecking(onFire);
@@ -373,20 +374,14 @@ async function registerLiveChecking(onFire, myToken){
     const dot = document.getElementById("liveDot");
     if(dot) dot.classList.add("on");
     const label = document.getElementById("liveLabel");
-    if(label && currentHost === "PowerPoint") label.textContent = "Polling (no reliable live event on this host)";
+    if(label) label.textContent = "Checking for changes...";
   }catch(e){
     const label = document.getElementById("liveLabel");
     if(label) label.textContent = "Live watching unavailable — use Check now";
   }
-  // Safety net for anything the host's own events don't cover — and for
-  // PowerPoint specifically, this poll IS the primary mechanism, not a
-  // backstop. PowerPoint has no equivalent of Excel's onChanged or Word's
-  // onParagraphChanged; the only related event (Office.EventType.
-  // DocumentSelectionChanged) fires on SELECTION changes, not content
-  // edits, and is documented as unreliable across recent PowerPoint
-  // builds. Polled every 2.5s here rather than relied on as an event.
+  
   clearInterval(window._icdlPoll);
-  const pollMs = currentHost === "PowerPoint" ? 2500 : currentHost === "Word" ? 3000 : 6000;
+  const pollMs = currentHost === "PowerPoint" ? 500 : currentHost === "Word" ? 800 : 6000;
   window._icdlPoll = setInterval(()=>{ if(myToken===renderToken) onFire(); }, pollMs);
 }
 
@@ -394,9 +389,9 @@ async function registerExcelLiveChecking(onFire){
   const context = new Excel.RequestContext();
   const sheet = context.workbook.worksheets.getActiveWorksheet();
   const handlers = [
-    sheet.onChanged.add(async () => onFire()),          // fires on both value AND format changes
-    sheet.charts.onAdded.add(async () => onFire()),      // chart insertion isn't a "change" to a cell, separate event
-    context.workbook.worksheets.onAdded.add(async () => onFire()) // catches "add a new worksheet" tasks
+    sheet.onChanged.add(async () => onFire()),
+    sheet.charts.onAdded.add(async () => onFire()),
+    context.workbook.worksheets.onAdded.add(async () => onFire())
   ];
   await context.sync();
   liveHandlerInfo = { kind:"context", context, handlers };
@@ -414,9 +409,6 @@ async function registerWordLiveChecking(onFire){
 }
 
 async function registerPowerPointLiveChecking(onFire){
-  // Best-effort only — see the caveat above. Uses the older callback-style
-  // common API (Office.context.document), not PowerPoint.run, since that's
-  // where this particular event lives.
   await new Promise((resolve, reject) => {
     const handlerFn = () => onFire();
     Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, handlerFn, (result) => {
@@ -445,7 +437,7 @@ async function teardownLiveChecking(){
       info.handlers.forEach(h => h.remove());
       await info.context.sync();
     }
-  }catch(e){ /* best effort — a leftover handler is inert thanks to the render-token guard above */ }
+  }catch(e){ }
 }
 
 function setStatus(msg, isErr){

@@ -23,20 +23,22 @@ async function resetToSingleBlankSlide(context){
   await context.sync();
 }
 
-async function slideHasText(slide, text){
+async function slideHasText(context, slide, text){
   slide.shapes.load("items");
-  await slide.context.sync();
-  const results = [];
+  await context.sync();
   for(const shape of slide.shapes.items){
     shape.textFrame.load("hasText");
   }
-  await slide.context.sync();
+  await context.sync();
   for(const shape of slide.shapes.items){
-    if(shape.textFrame.hasText) shape.textFrame.textRange.load("text");
+    if(shape.textFrame.hasText){
+      shape.textFrame.textRange.load("text");
+    }
   }
-  await slide.context.sync();
+  await context.sync();
+  const normalized = (text || "").toLowerCase();
   return slide.shapes.items.some(shape =>
-    shape.textFrame.hasText && (shape.textFrame.textRange.text || "").toLowerCase().includes(text.toLowerCase())
+    shape.textFrame.hasText && (shape.textFrame.textRange.text || "").toLowerCase().includes(normalized)
   );
 }
 
@@ -95,7 +97,7 @@ window.LESSON_MODULES["ppt-build"] = {
           slides.load("items");
           await context.sync();
           if(slides.items.length === 0) return false;
-          return await slideHasText(slides.items[0], "Founders' Day Pitch");
+          return await slideHasText(context, slides.items[0], "Founders' Day Pitch");
         })
       }
     ]
@@ -127,7 +129,7 @@ window.LESSON_MODULES["ppt-build"] = {
           slides.load("items");
           await context.sync();
           if(slides.items.length === 0) return false;
-          return await slideHasText(slides.items[0], "Founders' Day Pitch");
+          return await slideHasText(context, slides.items[0], "Founders' Day Pitch");
         }) },
 
       { ref: "4.1.3", text: "One slide was added by mistake during setup — the deck should have <b>3</b> slides, not 4. Delete the extra one.",
