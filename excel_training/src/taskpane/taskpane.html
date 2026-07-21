@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=Edge">
+<title>ICDL Application Essentials</title>
+<script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!--
+  ==========================================================================
+  TASK PANE — shell + lesson engine
+  ==========================================================================
+  This file no longer contains any lesson content. It's a shell that:
+    1. Renders the lesson list from LESSONS below
+    2. When a "ready" lesson is opened, dynamically loads lessons/<id>.js
+       (a plain script — see any file in lessons/ for the exact shape)
+    3. Renders whatever that module exports via the generic Tutorial /
+       Assignment engine (drawLessonShell / renderMode)
+
+  ADDING A NEW LESSON:
+    1. Copy lessons/xl-data.js as a starting point
+    2. Change the title, hook, brief, setup(), and tasks for both
+       `tutorial` and `assignment`
+    3. Save it as lessons/<your-id>.js
+    4. Add one line to the LESSONS array below: { id:"<your-id>", title:"...", ready:true }
+    5. Make sure your webpack config serves the lessons/ folder — see
+       README.md, this is a one-time setup step, not per-lesson.
+
+  A lesson module (not the capstone) looks like:
+    window.LESSON_MODULES["xl-data"] = {
+      title: "Entering and Managing Data",
+      tutorial:   { hook, brief, doneMsg, setup: async()=>{...}, tasks:[{ref,text,hint,check:async()=>bool}] },
+      assignment: { hook, brief, doneMsg, setup: async()=>{...}, tasks:[...] }
+    };
+  The capstone (Founders' Day) sets `isCapstone:true` and only fills in
+  `assignment` — see lessons/founders-day.js.
+  ==========================================================================
+-->
+
+<style>
+  :root{
+    --paper:#FBFAF6; --ink:#16242B; --muted:#6E7A77;
+    --rule:#D6D2C6; --grid:#E9E6DC; --mark:#F4C542; --good:#16796B; --bad:#B33F2C;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:Inter,system-ui,sans-serif; font-size:13px; line-height:1.5;
+  }
+  .pane{padding:14px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  h1{font-family:"Space Grotesk",sans-serif;font-size:19px;margin:4px 0 10px;letter-spacing:-.01em}
+  h2{font-family:"Space Grotesk",sans-serif;font-size:15px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:12px;margin:0 0 12px}
+
+  button{font:inherit;font-size:12.5px;background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);padding:6px 10px;cursor:pointer;border-radius:0}
+  button:hover{background:var(--mark)}
+  button.primary{background:var(--ink);color:var(--paper)}
+  button.primary:hover{background:var(--good);border-color:var(--good)}
+  button:disabled{opacity:.4;cursor:default;background:var(--paper)}
+  button.block{width:100%;margin-bottom:8px}
+  .backbtn{border:0;padding:0;background:none;color:var(--muted);text-decoration:underline;margin-bottom:10px}
+  .backbtn:hover{background:none;color:var(--ink)}
+
+  .lesson-row{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1.5px solid var(--rule);padding:9px 10px;margin-bottom:6px;cursor:pointer;background:var(--paper)}
+  .lesson-row.ready{border-color:var(--ink)}
+  .lesson-row.ready:hover{background:var(--mark)}
+  .lesson-row.disabled{cursor:default;color:var(--muted)}
+  .lesson-num{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);min-width:20px}
+  .lesson-title{font-size:12.5px;flex:1}
+  .tag{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--rule);color:var(--muted)}
+  .tag.ready{border-color:var(--good);color:var(--good)}
+
+  .hostbar{display:flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);margin-bottom:10px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--good)}
+
+  .modeToggle{display:flex;gap:6px;margin-bottom:10px}
+  .modeBtn{flex:1;font-size:11.5px}
+  .modeBtn.on{background:var(--ink);color:var(--paper)}
+
+  .brief{border:1px solid var(--rule);border-left:3px solid var(--ink);padding:8px 10px;font-size:12px;margin-bottom:12px;background:#F4F2E9}
+
+  .livebar{display:flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);margin-bottom:10px;padding:5px 8px;border:1px solid var(--rule);background:#F4F2E9}
+  .livebar .dot{width:7px;height:7px;border-radius:50%;background:var(--rule);flex:none}
+  .livebar .dot.on{background:var(--good)}
+
+  .prog-label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:4px 0}
+  .prog-track{height:7px;background:var(--grid);border:1px solid var(--rule)}
+  .prog-fill{height:100%;background:var(--good);width:0;transition:width .4s ease}
+
+  ol.tasks{list-style:none;margin:12px 0 0;padding:0}
+  ol.tasks li{border-bottom:1px solid var(--rule);padding:9px 2px;display:grid;grid-template-columns:16px 1fr;gap:8px}
+  .tick{width:14px;height:14px;border:1.5px solid var(--ink);margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:9px}
+  .ref-tag{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:2px}
+  .task-text{font-size:12px}
+  .task-text code{background:#EFEBDE;padding:0 3px;font-family:"IBM Plex Mono",monospace;font-size:11px}
+  li.done .task-text{color:var(--muted)}
+  li.done .tick{background:var(--good);border-color:var(--good);color:#fff}
+  .hint{margin-top:4px;font-size:11px;color:var(--muted);display:none}
+  li.show-hint .hint{display:block}
+  .hint-btn{background:none;border:0;padding:0;font-size:10.5px;color:var(--muted);text-decoration:underline;cursor:pointer;margin-top:3px}
+  .hint-btn:hover{background:none;color:var(--ink)}
+
+  .status{font-size:11px;color:var(--muted);margin-top:8px;min-height:14px}
+  .status.err{color:var(--bad)}
+  .done-banner{margin-top:10px;padding:10px;font-family:"Space Grotesk",sans-serif;font-size:12.5px;background:var(--ink);color:var(--paper);display:none}
+  .done-banner.show{display:block}
+</style>
+</head>
+<body>
+<div class="pane" id="pane"></div>
+
+<script>
+const LESSONS = [
+  { id:"foundations",   title:"Meet Your Office Toolkit",              ready:false },
+  { id:"word-edit",      title:"Writing and Editing Text",              ready:false },
+  { id:"word-format",    title:"Formatting and Paragraphs",             ready:false },
+  { id:"word-tables",    title:"Tables and Objects",                    ready:false },
+  { id:"word-output",    title:"Finishing and Printing a Document",     ready:false },
+  { id:"xl-data",        title:"Entering and Managing Data",            ready:true  },
+  { id:"xl-format",      title:"Formatting Cells and Sheet Structure",  ready:false },
+  { id:"xl-formulas",    title:"Formulas & Functions",                  ready:false },
+  { id:"xl-charts",      title:"Charts and Outputs",                    ready:false },
+  { id:"ppt-build",      title:"Building Your Deck",                    ready:false },
+  { id:"ppt-text",       title:"Slide Text and Formatting",             ready:false },
+  { id:"ppt-objects",    title:"Pictures, Objects and Transitions",     ready:false },
+  { id:"ppt-present",    title:"Presenting and Printing",               ready:false },
+  { id:"founders-day",   title:"Founders' Day — Final Assignment",      ready:true  }
+];
+
+let currentHost = null;
+let activeMode = "tutorial";
+let renderToken = 0;          // bumped every renderMode() call — stale async callbacks check this before touching the DOM
+let liveHandlerInfo = null;   // { context, handlers:[EventHandlerResult,...] } for the currently-registered live-checking handlers
+let debounceTimer = null;
+window.LESSON_MODULES = window.LESSON_MODULES || {};
+
+Office.onReady((info) => {
+  currentHost = info.host;
+  renderLessonList();
+});
+
+function el(html){ const d=document.createElement("div"); d.innerHTML=html.trim(); return d.firstChild; }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch])); }
+
+/* ---------------- lesson list view ---------------- */
+function renderLessonList(){
+  renderToken++;            // invalidate whatever lesson/mode was active — do this FIRST, synchronously
+  teardownLiveChecking();   // stop the Excel-side handlers running in the background; token guard covers the gap either way
+
+  const pane = document.getElementById("pane");
+  pane.innerHTML = "";
+  pane.appendChild(el(`<div class="eyebrow">ICDL Application Essentials</div>`));
+  pane.appendChild(el(`<h1>Lessons</h1>`));
+  pane.appendChild(el(`<div class="hostbar"><span class="dot"></span>Connected to ${escapeHtml(currentHost||"Office")}</div>`));
+
+  const list = document.createElement("div");
+  LESSONS.forEach((lesson, i)=>{
+    const row = el(`
+      <div class="lesson-row ${lesson.ready?'ready':'disabled'}">
+        <span class="lesson-num">${String(i+1).padStart(2,"0")}</span>
+        <span class="lesson-title">${escapeHtml(lesson.title)}</span>
+        <span class="tag ${lesson.ready?'ready':''}">${lesson.ready?"Ready":"Coming soon"}</span>
+      </div>`);
+    if(lesson.ready) row.addEventListener("click", ()=> openLesson(lesson.id));
+    list.appendChild(row);
+  });
+  pane.appendChild(list);
+}
+
+/* ---------------- dynamic lesson loading ---------------- */
+function openLesson(id){
+  if(window.LESSON_MODULES[id]){ activeMode="tutorial"; drawLessonShell(id); return; }
+  const path = `assets/lessons/${id}.js`;
+  const s = document.createElement("script");
+  s.src = path;
+  s.onload = ()=>{ activeMode="tutorial"; drawLessonShell(id); };
+  s.onerror = ()=>{
+    const pane = document.getElementById("pane");
+    pane.innerHTML = "";
+    pane.appendChild(el(`<button class="backbtn" id="btnBack">&larr; All lessons</button>`));
+    pane.appendChild(el(`<div class="status err">Couldn't load ${escapeHtml(path)} — check the file exists at that exact path and that your webpack CopyWebpackPlugin "from" pattern points at where it actually lives (see README.md).</div>`));
+    document.getElementById("btnBack").onclick = renderLessonList;
+  };
+  document.head.appendChild(s);
+}
+
+/* ---------------- generic tutorial/assignment engine ---------------- */
+function drawLessonShell(id){
+  const mod = window.LESSON_MODULES[id];
+  const pane = document.getElementById("pane");
+  pane.innerHTML = "";
+  pane.appendChild(el(`<button class="backbtn" id="btnBack">&larr; All lessons</button>`));
+  pane.appendChild(el(`<h2>${escapeHtml(mod.title)}</h2>`));
+
+  if(!mod.isCapstone){
+    pane.appendChild(el(`
+      <div class="modeToggle">
+        <button id="modeTut" class="modeBtn ${activeMode==='tutorial'?'on':''}">Tutorial</button>
+        <button id="modeAsn" class="modeBtn ${activeMode==='assignment'?'on':''}">Assignment</button>
+      </div>`));
+  }
+
+  const body = el(`<div id="modeBody"></div>`);
+  pane.appendChild(body);
+
+  document.getElementById("btnBack").onclick = renderLessonList;
+  const tutBtn = document.getElementById("modeTut");
+  const asnBtn = document.getElementById("modeAsn");
+  if(tutBtn) tutBtn.onclick = ()=>{ activeMode="tutorial"; drawLessonShell(id); };
+  if(asnBtn) asnBtn.onclick = ()=>{ activeMode="assignment"; drawLessonShell(id); };
+
+  renderMode(mod[mod.isCapstone ? "assignment" : activeMode], body);
+}
+
+async function renderMode(data, container){
+  renderToken++;
+  const myToken = renderToken;
+  await teardownLiveChecking(); // stop whatever was watching the previous mode/lesson
+
+  container.innerHTML = "";
+  container.appendChild(el(`<p class="sub">${escapeHtml(data.hook)}</p>`));
+  container.appendChild(el(`<div class="brief">${escapeHtml(data.brief)}</div>`));
+  container.appendChild(el(`<button class="block" id="btnSetup">Load starter data</button>`));
+  container.appendChild(el(`
+    <div class="livebar" id="liveBar"><span class="dot" id="liveDot"></span><span id="liveLabel">Watching for changes…</span>
+      <button id="btnCheck" style="margin-left:auto;font-size:10.5px;padding:3px 7px">Check now</button></div>`));
+  container.appendChild(el(`<div class="prog-label" id="progText">0 of ${data.tasks.length} done</div>`));
+  container.appendChild(el(`<div class="prog-track"><div class="prog-fill" id="progFill"></div></div>`));
+  const list = el(`<ol class="tasks" id="taskList"></ol>`);
+  container.appendChild(list);
+  container.appendChild(el(`<div class="status" id="statusMsg"></div>`));
+  container.appendChild(el(`<div class="done-banner" id="doneBanner">${escapeHtml(data.doneMsg||"Nicely done.")}</div>`));
+
+  list.innerHTML = data.tasks.map((t,i)=>`
+    <li data-i="${i}"><div class="tick" aria-hidden="true">✓</div><div>
+      <span class="ref-tag">${t.ref}</span>
+      <div class="task-text">${t.text}</div>
+      <button class="hint-btn" data-hint="${i}">Stuck?</button>
+      <div class="hint">${t.hint}</div>
+    </div></li>`).join("");
+  list.addEventListener("click", e=>{ const b=e.target.closest("[data-hint]"); if(b) b.closest("li").classList.toggle("show-hint"); });
+
+  async function runAllChecks(){
+    if(myToken !== renderToken) return; // this mode isn't on screen anymore — discard
+    setStatus("Checking…");
+    let done = 0;
+    for(let i=0;i<data.tasks.length;i++){
+      let ok = false;
+      try{ ok = await data.tasks[i].check(); }catch(e){ ok = false; }
+      if(myToken !== renderToken) return; // stale mid-loop — bail before touching the DOM
+      if(ok) done++;
+      list.children[i].classList.toggle("done", ok);
+    }
+    if(myToken !== renderToken) return;
+    document.getElementById("progText").textContent = `${done} of ${data.tasks.length} done`;
+    document.getElementById("progFill").style.width = (done/data.tasks.length*100)+"%";
+    document.getElementById("doneBanner").classList.toggle("show", done===data.tasks.length);
+    setStatus(done===data.tasks.length ? "All done." : "Checked — keep going.");
+  }
+
+  function debouncedRecheck(){
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runAllChecks, 700);
+  }
+
+  document.getElementById("btnSetup").onclick = async ()=>{
+    setStatus("Loading starter data…");
+    try{ await data.setup(); setStatus("Starter data loaded."); await runAllChecks(); }
+    catch(err){ setStatus("Couldn't load starter data: "+err.message, true); }
+  };
+  document.getElementById("btnCheck").onclick = runAllChecks;
+
+  await registerLiveChecking(debouncedRecheck, myToken);
+}
+
+/* ---------------- live checking: Excel event handlers + a safety-net poll ---------------- */
+async function registerLiveChecking(onFire, myToken){
+  try{
+    const context = new Excel.RequestContext();
+    const sheet = context.workbook.worksheets.getActiveWorksheet();
+    const handlers = [
+      sheet.onChanged.add(async () => onFire()),          // fires on both value AND format changes
+      sheet.charts.onAdded.add(async () => onFire()),      // chart insertion isn't a "change" to a cell, separate event
+      context.workbook.worksheets.onAdded.add(async () => onFire()) // catches "add a new worksheet" tasks
+    ];
+    await context.sync();
+    liveHandlerInfo = { context, handlers };
+    const dot = document.getElementById("liveDot");
+    if(dot) dot.classList.add("on");
+  }catch(e){
+    // Live events unavailable for some reason (older Office build, etc.) — the
+    // poll below still keeps things reasonably fresh, and "Check now" always works.
+    const label = document.getElementById("liveLabel");
+    if(label) label.textContent = "Live watching unavailable — use Check now";
+  }
+  // Safety net: catches anything the three events above don't cover
+  // (e.g. edits on a worksheet other than the one active when we registered).
+  clearInterval(window._icdlPoll);
+  window._icdlPoll = setInterval(()=>{ if(myToken===renderToken) onFire(); }, 6000);
+}
+
+async function teardownLiveChecking(){
+  clearInterval(window._icdlPoll);
+  clearTimeout(debounceTimer);
+  if(!liveHandlerInfo) return;
+  const { context, handlers } = liveHandlerInfo;
+  liveHandlerInfo = null;
+  try{
+    handlers.forEach(h => h.remove());
+    await context.sync();
+  }catch(e){ /* best effort — a leftover handler is inert thanks to the render-token guard above */ }
+}
+
+function setStatus(msg, isErr){
+  const s = document.getElementById("statusMsg");
+  if(!s) return;
+  s.textContent = msg;
+  s.classList.toggle("err", !!isErr);
+}
+</script>
+</body>
+</html>
