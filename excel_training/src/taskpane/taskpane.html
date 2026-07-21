@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=Edge">
-<title>ICDL Application Essentials</title>
+<title>RIPB Microsoft Office Training</title>
 <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -107,6 +107,17 @@
 
   .status{font-size:11px;color:var(--muted);margin-top:8px;min-height:14px}
   .status.err{color:var(--bad)}
+
+  .stepnav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+  .stepnav button{padding:3px 10px;font-family:"IBM Plex Mono",monospace}
+  .stepcount{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .steptitle{font-family:"Space Grotesk",sans-serif;font-size:15px;margin:0 0 8px}
+  .teach{font-size:12.5px;border:1px solid var(--rule);border-left:3px solid var(--good);padding:9px 11px;margin-bottom:12px;background:#F1F4F0}
+  .teach b{font-weight:600}
+  .teach code{background:#E4EDE9;padding:0 3px;font-family:"IBM Plex Mono",monospace;font-size:11px}
+  .teach .keys{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink)}
+  .stepresult{min-height:20px;font-size:12.5px;font-family:"Space Grotesk",sans-serif;color:var(--good);margin-top:4px}
+  .stepresult.ok{padding:8px 10px;background:var(--good);color:#fff}
   .done-banner{margin-top:10px;padding:10px;font-family:"Space Grotesk",sans-serif;font-size:12.5px;background:var(--ink);color:var(--paper);display:none}
   .done-banner.show{display:block}
 </style>
@@ -117,19 +128,19 @@
 <script>
 const LESSONS = [
   { id:"foundations",   title:"Meet Your Office Toolkit",              ready:false },
-  { id:"word-edit",      title:"Writing and Editing Text",              ready:false },
-  { id:"word-format",    title:"Formatting and Paragraphs",             ready:false },
-  { id:"word-tables",    title:"Tables and Objects",                    ready:false },
-  { id:"word-output",    title:"Finishing and Printing a Document",     ready:false },
-  { id:"xl-data",        title:"Entering and Managing Data",            ready:true  },
-  { id:"xl-format",      title:"Formatting Cells and Sheet Structure",  ready:false },
-  { id:"xl-formulas",    title:"Formulas & Functions",                  ready:false },
-  { id:"xl-charts",      title:"Charts and Outputs",                    ready:false },
-  { id:"ppt-build",      title:"Building Your Deck",                    ready:false },
-  { id:"ppt-text",       title:"Slide Text and Formatting",             ready:false },
-  { id:"ppt-objects",    title:"Pictures, Objects and Transitions",     ready:false },
-  { id:"ppt-present",    title:"Presenting and Printing",               ready:false },
-  { id:"founders-day",   title:"Founders' Day — Final Assignment",      ready:true  }
+  { id:"word-edit",      title:"Word: Writing and Editing Text",              ready:false },
+  { id:"word-format",    title:"Word: Formatting and Paragraphs",             ready:false },
+  { id:"word-tables",    title:"Word: Tables and Objects",                    ready:false },
+  { id:"word-output",    title:"Word: Finishing and Printing a Document",     ready:false },
+  { id:"xl-data",        title:"Excel: Entering and Managing Data",            ready:true  },
+  { id:"xl-format",      title:"Excel: Formatting Cells and Sheet Structure",  ready:true  },
+  { id:"xl-formulas",    title:"Excel: Formulas & Functions",                  ready:true  },
+  { id:"xl-charts",      title:"Excel: Charts and Outputs",                    ready:true  },
+  { id:"founders-day",   title:"Excel: Founders' Day Final Assignment",      ready:true  },
+  { id:"ppt-build",      title:"PowerPoint: Building Your Deck",                    ready:false },
+  { id:"ppt-text",       title:"PowerPoint: Slide Text and Formatting",             ready:false },
+  { id:"ppt-objects",    title:"PowerPoint: Pictures, Objects and Transitions",     ready:false },
+  { id:"ppt-present",    title:"PowerPoint: Presenting and Printing",               ready:false },
 ];
 
 let currentHost = null;
@@ -154,7 +165,7 @@ function renderLessonList(){
 
   const pane = document.getElementById("pane");
   pane.innerHTML = "";
-  pane.appendChild(el(`<div class="eyebrow">ICDL Application Essentials</div>`));
+  pane.appendChild(el(`<div class="eyebrow">RIPB Microsoft Office Training</div>`));
   pane.appendChild(el(`<h1>Lessons</h1>`));
   pane.appendChild(el(`<div class="hostbar"><span class="dot"></span>Connected to ${escapeHtml(currentHost||"Office")}</div>`));
 
@@ -214,13 +225,88 @@ function drawLessonShell(id){
   if(tutBtn) tutBtn.onclick = ()=>{ activeMode="tutorial"; drawLessonShell(id); };
   if(asnBtn) asnBtn.onclick = ()=>{ activeMode="assignment"; drawLessonShell(id); };
 
-  renderMode(mod[mod.isCapstone ? "assignment" : activeMode], body);
+  renderMode(mod[mod.isCapstone ? "assignment" : activeMode], body, mod.isCapstone ? "assignment" : activeMode);
 }
 
-async function renderMode(data, container){
+function renderMode(data, container, mode){
+  if(mode === "tutorial") renderTutorial(data, container);
+  else renderAssignment(data, container);
+}
+
+/* ============================================================
+   TUTORIAL ENGINE — a stepper. Each step is self-contained:
+   its own load state, its own explanation, its own single check.
+   Steps do NOT share a workbook state — every step's "Load this
+   step" wipes and re-seeds, because each one teaches one mechanic
+   in isolation.
+   ============================================================ */
+async function renderTutorial(data, container){
   renderToken++;
   const myToken = renderToken;
-  await teardownLiveChecking(); // stop whatever was watching the previous mode/lesson
+  await teardownLiveChecking();
+
+  let stepIdx = 0;
+  const steps = data.steps;
+
+  container.innerHTML = "";
+  container.appendChild(el(`<p class="sub">${escapeHtml(data.hook)}</p>`));
+  const stepWrap = el(`<div id="stepWrap"></div>`);
+  container.appendChild(stepWrap);
+
+  async function drawStep(){
+    if(myToken !== renderToken) return;
+    const step = steps[stepIdx];
+    stepWrap.innerHTML = "";
+
+    stepWrap.appendChild(el(`
+      <div class="stepnav">
+        <button id="stepPrev" ${stepIdx===0?"disabled":""}>&larr;</button>
+        <span class="stepcount">Step ${stepIdx+1} of ${steps.length}</span>
+        <button id="stepNext" ${stepIdx===steps.length-1?"disabled":""}>&rarr;</button>
+      </div>`));
+    stepWrap.appendChild(el(`<h3 class="steptitle">${escapeHtml(step.title)}</h3>`));
+    stepWrap.appendChild(el(`<button class="block" id="btnStepLoad">Load this step</button>`));
+    stepWrap.appendChild(el(`<div class="teach">${step.teach}</div>`));
+    stepWrap.appendChild(el(`<div class="livebar" id="liveBar" style="border:0;background:none;padding:0;margin:0 0 10px;display:block"><span class="dot" id="liveDot" style="display:none"></span><span id="liveLabel">Try it — I'll check automatically</span></div>`));
+    stepWrap.appendChild(el(`<div class="stepresult" id="stepResult"></div>`));
+    stepWrap.appendChild(el(`<div class="status" id="statusMsg"></div>`));
+
+    document.getElementById("stepPrev").onclick = async ()=>{ if(stepIdx>0){ stepIdx--; await teardownLiveChecking(); drawStep(); } };
+    document.getElementById("stepNext").onclick = async ()=>{ if(stepIdx<steps.length-1){ stepIdx++; await teardownLiveChecking(); drawStep(); } };
+
+    document.getElementById("btnStepLoad").onclick = async ()=>{
+      setStatus("Loading…");
+      try{ await step.setup(); setStatus("Loaded — now try it in the sheet."); markStep(false); await runStepCheck(); }
+      catch(err){ setStatus("Couldn't load: "+err.message, true); }
+    };
+    async function runStepCheck(){
+      if(myToken !== renderToken) return;
+      let ok = false;
+      try{ ok = await step.check(); }catch(e){ ok = false; }
+      if(myToken !== renderToken) return;
+      markStep(ok);
+    }
+    function markStep(ok){
+      const res = document.getElementById("stepResult");
+      if(!res) return;
+      res.className = "stepresult " + (ok ? "ok" : "");
+      res.textContent = ok ? "✓ " + (step.done || "Got it — that's the move.") : "";
+    }
+
+    await registerLiveChecking(()=>{ if(myToken===renderToken) runStepCheck(); }, myToken);
+  }
+
+  drawStep();
+}
+
+/* ============================================================
+   ASSIGNMENT ENGINE — one scenario, one load, full checklist.
+   (This is the original renderMode, unchanged in behaviour.)
+   ============================================================ */
+function renderAssignment(data, container){
+  renderToken++;
+  const myToken = renderToken;
+  teardownLiveChecking();
 
   container.innerHTML = "";
   container.appendChild(el(`<p class="sub">${escapeHtml(data.hook)}</p>`));
@@ -246,13 +332,13 @@ async function renderMode(data, container){
   list.addEventListener("click", e=>{ const b=e.target.closest("[data-hint]"); if(b) b.closest("li").classList.toggle("show-hint"); });
 
   async function runAllChecks(){
-    if(myToken !== renderToken) return; // this mode isn't on screen anymore — discard
+    if(myToken !== renderToken) return;
     setStatus("Checking…");
     let done = 0;
     for(let i=0;i<data.tasks.length;i++){
       let ok = false;
       try{ ok = await data.tasks[i].check(); }catch(e){ ok = false; }
-      if(myToken !== renderToken) return; // stale mid-loop — bail before touching the DOM
+      if(myToken !== renderToken) return;
       if(ok) done++;
       list.children[i].classList.toggle("done", ok);
     }
@@ -262,11 +348,7 @@ async function renderMode(data, container){
     document.getElementById("doneBanner").classList.toggle("show", done===data.tasks.length);
     setStatus(done===data.tasks.length ? "All done." : "Checked — keep going.");
   }
-
-  function debouncedRecheck(){
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(runAllChecks, 700);
-  }
+  function debouncedRecheck(){ clearTimeout(debounceTimer); debounceTimer = setTimeout(runAllChecks, 700); }
 
   document.getElementById("btnSetup").onclick = async ()=>{
     setStatus("Loading starter data…");
@@ -275,7 +357,7 @@ async function renderMode(data, container){
   };
   document.getElementById("btnCheck").onclick = runAllChecks;
 
-  await registerLiveChecking(debouncedRecheck, myToken);
+  registerLiveChecking(debouncedRecheck, myToken);
 }
 
 /* ---------------- live checking: Excel event handlers + a safety-net poll ---------------- */
