@@ -106,27 +106,9 @@ To add a new lesson or module, follow these steps:
 
 ## Testing the training content
 
-### Excel
-
-1. Open the pane and confirm the lesson list appears correctly.
-2. Open a lesson and try the Tutorial mode first.
-3. Then switch to Assignment mode and complete the checklist.
-4. Confirm that the live-checking behavior updates as expected while you edit the workbook.
-
-### Word
-
-The manifest can support both Excel and Word. When you run the add-in, you may be asked to choose the host application. That is expected.
-
-Only the Word editing lesson is currently available for Word. It uses the same basic tutorial-and-assignment structure as the Excel lessons, but with Word-specific logic.
-
-### PowerPoint
-
-The manifest now lists Excel, Word, and PowerPoint. Only "Building Your Deck" is built for PowerPoint so far (`lessons/ppt-build.js`), and it is deliberately smaller than the Excel and Word lessons for two practical reasons:
-
-1. No reliable live event exists on this host. Excel has `onChanged` for value and formatting changes, and Word has `onParagraphChanged` and `onParagraphAdded` for content changes. PowerPoint has neither. The related event `Office.EventType.DocumentSelectionChanged` only fires on selection changes, not content edits, and Microsoft has an open issue showing that it is unreliable across recent PowerPoint versions. In practice, live-checking here is a 2.5-second poll doing most of the work rather than a fast event-driven system.
-2. The text-reading API is the least certain part of the implementation without real-world testing. `slideHasText()` in `ppt-build.js` searches every shape on a slide for matching text rather than assuming a specific title placeholder, which is safer than guessing shape order but still the part most likely to need adjustment if something does not behave as expected. If a title-text check does not tick, that function is the first place to inspect.
-
-By contrast, `slides.add()` and slide deletion are both well documented and should work reliably.
+1. Test tutorials to ensure all makes sense and there are no mistakes in instructions.
+2. Test assignments to ensure all makes sense and there are no irregularities in scenarios.
+3. Look out for any improvements that can be made to syllabus and send to Phyo.
 
 ## Notes and caveats
 
