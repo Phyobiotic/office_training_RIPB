@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=Edge">
-<title>RIPB Microsoft Office Training</title>
+<title>ICDL Application Essentials</title>
 <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -128,7 +128,7 @@
 <script>
 const LESSONS = [
   { id:"foundations",   title:"Meet Your Office Toolkit",              ready:false },
-  { id:"word-edit",      title:"Word: Writing and Editing Text",              ready:false },
+  { id:"word-edit",      title:"Word: Writing and Editing Text",              ready:true },
   { id:"word-format",    title:"Word: Formatting and Paragraphs",             ready:false },
   { id:"word-tables",    title:"Word: Tables and Objects",                    ready:false },
   { id:"word-output",    title:"Word: Finishing and Printing a Document",     ready:false },
@@ -137,7 +137,7 @@ const LESSONS = [
   { id:"xl-formulas",    title:"Excel: Formulas & Functions",                  ready:true  },
   { id:"xl-charts",      title:"Excel: Charts and Outputs",                    ready:true  },
   { id:"founders-day",   title:"Excel: Founders' Day Final Assignment",      ready:true  },
-  { id:"ppt-build",      title:"PowerPoint: Building Your Deck",                    ready:false },
+  { id:"ppt-build",      title:"PowerPoint: Building Your Deck",                    ready:true },
   { id:"ppt-text",       title:"PowerPoint: Slide Text and Formatting",             ready:false },
   { id:"ppt-objects",    title:"PowerPoint: Pictures, Objects and Transitions",     ready:false },
   { id:"ppt-present",    title:"PowerPoint: Presenting and Printing",               ready:false },
@@ -165,7 +165,7 @@ function renderLessonList(){
 
   const pane = document.getElementById("pane");
   pane.innerHTML = "";
-  pane.appendChild(el(`<div class="eyebrow">RIPB Microsoft Office Training</div>`));
+  pane.appendChild(el(`<div class="eyebrow">ICDL Application Essentials</div>`));
   pane.appendChild(el(`<h1>Lessons</h1>`));
   pane.appendChild(el(`<div class="hostbar"><span class="dot"></span>Connected to ${escapeHtml(currentHost||"Office")}</div>`));
 
@@ -265,9 +265,11 @@ async function renderTutorial(data, container){
         <button id="stepNext" ${stepIdx===steps.length-1?"disabled":""}>&rarr;</button>
       </div>`));
     stepWrap.appendChild(el(`<h3 class="steptitle">${escapeHtml(step.title)}</h3>`));
-    stepWrap.appendChild(el(`<button class="block" id="btnStepLoad">Load this step</button>`));
     stepWrap.appendChild(el(`<div class="teach">${step.teach}</div>`));
-    stepWrap.appendChild(el(`<div class="livebar" id="liveBar" style="border:0;background:none;padding:0;margin:0 0 10px;display:block"><span class="dot" id="liveDot" style="display:none"></span><span id="liveLabel">Try it — I'll check automatically</span></div>`));
+    stepWrap.appendChild(el(`<button class="block" id="btnStepLoad">Load this step</button>`));
+    stepWrap.appendChild(el(`
+      <div class="livebar" id="liveBar"><span class="dot" id="liveDot"></span><span id="liveLabel">Try it — I'll check automatically</span>
+        <button id="btnStepCheck" style="margin-left:auto;font-size:10.5px;padding:3px 7px">Check now</button></div>`));
     stepWrap.appendChild(el(`<div class="stepresult" id="stepResult"></div>`));
     stepWrap.appendChild(el(`<div class="status" id="statusMsg"></div>`));
 
@@ -279,6 +281,8 @@ async function renderTutorial(data, container){
       try{ await step.setup(); setStatus("Loaded — now try it in the sheet."); markStep(false); await runStepCheck(); }
       catch(err){ setStatus("Couldn't load: "+err.message, true); }
     };
+    document.getElementById("btnStepCheck").onclick = runStepCheck;
+
     async function runStepCheck(){
       if(myToken !== renderToken) return;
       let ok = false;
@@ -360,41 +364,87 @@ function renderAssignment(data, container){
   registerLiveChecking(debouncedRecheck, myToken);
 }
 
-/* ---------------- live checking: Excel event handlers + a safety-net poll ---------------- */
+/* ---------------- live checking: host-dispatched, event handlers + a safety-net poll ---------------- */
 async function registerLiveChecking(onFire, myToken){
   try{
-    const context = new Excel.RequestContext();
-    const sheet = context.workbook.worksheets.getActiveWorksheet();
-    const handlers = [
-      sheet.onChanged.add(async () => onFire()),          // fires on both value AND format changes
-      sheet.charts.onAdded.add(async () => onFire()),      // chart insertion isn't a "change" to a cell, separate event
-      context.workbook.worksheets.onAdded.add(async () => onFire()) // catches "add a new worksheet" tasks
-    ];
-    await context.sync();
-    liveHandlerInfo = { context, handlers };
+    if(currentHost === "Word") await registerWordLiveChecking(onFire);
+    else if(currentHost === "PowerPoint") await registerPowerPointLiveChecking(onFire);
+    else await registerExcelLiveChecking(onFire);
     const dot = document.getElementById("liveDot");
     if(dot) dot.classList.add("on");
+    const label = document.getElementById("liveLabel");
+    if(label && currentHost === "PowerPoint") label.textContent = "Polling (no reliable live event on this host)";
   }catch(e){
-    // Live events unavailable for some reason (older Office build, etc.) — the
-    // poll below still keeps things reasonably fresh, and "Check now" always works.
     const label = document.getElementById("liveLabel");
     if(label) label.textContent = "Live watching unavailable — use Check now";
   }
-  // Safety net: catches anything the three events above don't cover
-  // (e.g. edits on a worksheet other than the one active when we registered).
+  // Safety net for anything the host's own events don't cover — and for
+  // PowerPoint specifically, this poll IS the primary mechanism, not a
+  // backstop. PowerPoint has no equivalent of Excel's onChanged or Word's
+  // onParagraphChanged; the only related event (Office.EventType.
+  // DocumentSelectionChanged) fires on SELECTION changes, not content
+  // edits, and is documented as unreliable across recent PowerPoint
+  // builds. Polled every 2.5s here rather than relied on as an event.
   clearInterval(window._icdlPoll);
-  window._icdlPoll = setInterval(()=>{ if(myToken===renderToken) onFire(); }, 6000);
+  const pollMs = currentHost === "PowerPoint" ? 2500 : currentHost === "Word" ? 3000 : 6000;
+  window._icdlPoll = setInterval(()=>{ if(myToken===renderToken) onFire(); }, pollMs);
+}
+
+async function registerExcelLiveChecking(onFire){
+  const context = new Excel.RequestContext();
+  const sheet = context.workbook.worksheets.getActiveWorksheet();
+  const handlers = [
+    sheet.onChanged.add(async () => onFire()),          // fires on both value AND format changes
+    sheet.charts.onAdded.add(async () => onFire()),      // chart insertion isn't a "change" to a cell, separate event
+    context.workbook.worksheets.onAdded.add(async () => onFire()) // catches "add a new worksheet" tasks
+  ];
+  await context.sync();
+  liveHandlerInfo = { kind:"context", context, handlers };
+}
+
+async function registerWordLiveChecking(onFire){
+  const context = new Word.RequestContext();
+  const doc = context.document;
+  const handlers = [
+    doc.onParagraphChanged.add(async () => onFire()),
+    doc.onParagraphAdded.add(async () => onFire())
+  ];
+  await context.sync();
+  liveHandlerInfo = { kind:"context", context, handlers };
+}
+
+async function registerPowerPointLiveChecking(onFire){
+  // Best-effort only — see the caveat above. Uses the older callback-style
+  // common API (Office.context.document), not PowerPoint.run, since that's
+  // where this particular event lives.
+  await new Promise((resolve, reject) => {
+    const handlerFn = () => onFire();
+    Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, handlerFn, (result) => {
+      if(result.status === Office.AsyncResultStatus.Succeeded){
+        liveHandlerInfo = { kind:"office-common", handlerFn };
+        resolve();
+      } else {
+        reject(new Error((result.error && result.error.message) || "couldn't register selection handler"));
+      }
+    });
+  });
 }
 
 async function teardownLiveChecking(){
   clearInterval(window._icdlPoll);
   clearTimeout(debounceTimer);
   if(!liveHandlerInfo) return;
-  const { context, handlers } = liveHandlerInfo;
+  const info = liveHandlerInfo;
   liveHandlerInfo = null;
   try{
-    handlers.forEach(h => h.remove());
-    await context.sync();
+    if(info.kind === "office-common"){
+      await new Promise((resolve) => {
+        Office.context.document.removeHandlerAsync(Office.EventType.DocumentSelectionChanged, { handler: info.handlerFn }, () => resolve());
+      });
+    } else {
+      info.handlers.forEach(h => h.remove());
+      await info.context.sync();
+    }
   }catch(e){ /* best effort — a leftover handler is inert thanks to the render-token guard above */ }
 }
 

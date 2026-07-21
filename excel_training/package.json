@@ -7,7 +7,6 @@
   },
   "license": "MIT",
   "config": {
-    "app_to_debug": "excel",
     "app_type_to_debug": "desktop",
     "dev_server_port": 3000
   },
@@ -21,6 +20,9 @@
     "signin": "office-addin-dev-settings m365-account login",
     "signout": "office-addin-dev-settings m365-account logout",
     "start": "office-addin-debugging start manifest.xml",
+    "start:excel": "office-addin-debugging start manifest.xml --app excel",
+    "start:word": "office-addin-debugging start manifest.xml --app word",
+    "start:ppt": "office-addin-debugging start manifest.xml --app powerpoint",
     "stop": "office-addin-debugging stop manifest.xml",
     "validate": "office-addin-manifest validate manifest.xml",
     "watch": "webpack --mode development --watch"

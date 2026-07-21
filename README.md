@@ -1,91 +1,138 @@
-# Wiring this into your project
+# Excel Training Add-in
 
-## Files
+A simple Office Add-in training project for Excel and Word, with lesson modules loaded into the task pane. By Phyo Ko Ko Thant.
 
-- `manifest.xml` → replace your project's root manifest, keep your own `<Id>`.
-- `taskpane.html` → replace `src/taskpane/taskpane.html`. Self-contained
-  (own `<style>`/`<script>`), so `taskpane.js`/`taskpane.css` are unused —
-  safe to ignore or delete.
-- `lessons/*.js` → new folder, `src/taskpane/lessons/`. Each file is one
-  lesson, loaded dynamically at runtime (not bundled as a webpack entry).
+## Quick start
 
-## One-time setup: serve the lessons/ folder
+### 1. Prerequisites
 
-This is the step that's easy to miss and will make lessons silently fail
-to load if skipped. Webpack only serves files it's explicitly told about.
+Make sure you have:
 
-Put your lesson files at `assets/lessons/*.js` (source location) — that's
-where the task pane requests them from at runtime
-(`assets/lessons/<id>.js`), so the CopyWebpackPlugin `from` pattern needs
-to point at that same source location, copying to the matching spot in the
-build output:
+- Node.js and npm installed
+- Microsoft Excel (and optionally Word) installed for testing
 
-```js
-{ from: "assets/lessons/*.js", to: "assets/lessons/[name][ext]" }
+### 2. Install dependencies
+
+From the project root, run:
+
+```bash
+cd excel_training
+npm install
 ```
 
-The `from` is where the files live in your project; the `to` is where
-they land in the served output — if you move the source folder, update
-`from` to match, or copying silently does nothing and you'll get a 404
-with no other clue why.
+### 3. Run the add-in
 
-Restart `npm start` after any webpack config change (config edits aren't
-picked up by hot reload).
+Start the local development server with one of these commands:
 
-## Adding a new lesson
+```bash
+cd excel_training
+npm start
+npm run start:excel
+npm run start:word
+npm run start:ppt
+```
 
-1. Copy `lessons/xl-data.js` as your starting point.
-2. Change the title, hook, brief, `setup()`, and `tasks` for both
-   `tutorial` and `assignment`.
-3. Save it as `lessons/<your-id>.js` in `src/taskpane/lessons/`.
-4. Add one line to the `LESSONS` array in `taskpane.html`:
-   `{ id:"<your-id>", title:"...", ready:true }`
-5. That's it — no other file needs touching. This is deliberate: your
-   friends can each own one lesson file without needing to understand or
-   edit the shell.
+- `npm start` and `npm run start:excel` launch Excel
+- `npm run start:word` launches Word
+- `npm run start:ppt` launches PowerPoint
 
-## What to test
+## Project structure
 
-1. Open the pane — "Entering and Managing Data" and "Founders' Day" should
-   be the only clickable rows.
-2. Open "Entering and Managing Data" → **Tutorial** → **Load starter
-   data** → work through the roster in Excel → **Check my work**.
-3. Switch to **Assignment** → **Load starter data** → work through the CIP
-   log → **Check my work**. This one's deliberately denser — 15 rows, four
-   spelling variants to normalise, a non-adjacent selection.
-4. Open "Founders' Day" and repeat — no Tutorial/Assignment toggle on this
-   one since it's already the terminal assignment.
+- [manifest.xml](manifest.xml) — the add-in manifest
+- [excel_training/src/taskpane/taskpane.html](excel_training/src/taskpane/taskpane.html) — the main task pane shell and lesson list
+- [excel_training/assets/lessons](excel_training/assets/lessons) — lesson JavaScript files loaded dynamically at runtime
+- [excel_training/src/taskpane/lessons](excel_training/src/taskpane/lessons) — the source location used for lesson modules in the project layout
 
-## Known rough edges to expect
+## Dependencies
 
-- **Fill colour checks** are wrapped in try/catch — Excel's API can throw
-  when reading `.format.fill.color` on an unfilled range instead of
-  returning something falsy.
-- **Non-adjacent bold checks** run several small `Excel.run` calls in
-  parallel (one per cell/range) rather than one batched call — more
-  network round-trips, but each check is isolated so one bad property read
-  can't take down the others.
-- **Live checking is now on by default.** The pane registers `onChanged`
-  (fires for both value AND formatting edits — confirmed against current
-  Microsoft docs, this isn't a guess), `charts.onAdded`, and
-  `worksheets.onAdded` on load, debounced 700ms so a burst of edits doesn't
-  trigger a check per keystroke. "Check now" still exists for an immediate
-  manual pass (handy right after "Load starter data"). A 6-second poll
-  runs alongside the event handlers as a safety net — it's what catches
-  the "add a new worksheet" task's data if a student edits a *different*
-  sheet than the one active when the handlers were registered, since
-  `onChanged` is scoped to one worksheet.
-- **Handler cleanup happens on every mode/lesson switch** — verified
-  against Microsoft's documented pattern (remove handlers using the same
-  `RequestContext` they were added with, not a fresh one). If that removal
-  silently fails for some reason, it doesn't corrupt anything visible: a
-  render-token guard means any check result from a stale handler gets
-  discarded before it touches the DOM, whether or not the underlying Excel
-  handler ever actually gets torn down.
-- **The dot in the live-status bar** turns green once handlers register
-  successfully; if it stays grey, live watching failed silently for that
-  session (older Office build, etc.) and it's fallen back to poll-only —
-  "Check now" and the 6s poll still work regardless.
-- The **new-worksheet check** in the assignment (`/term\s*4/i` name match)
-  assumes students name the sheet something containing "Term 4" — if you
-  want stricter or looser matching, that regex is the one line to change.
+### Runtime dependencies
+
+- core-js
+- regenerator-runtime
+
+### Development dependencies
+
+- @babel/core
+- @babel/preset-env
+- @types/office-js
+- @types/office-runtime
+- acorn
+- babel-loader
+- copy-webpack-plugin
+- eslint-plugin-office-addins
+- file-loader
+- html-loader
+- html-webpack-plugin
+- office-addin-cli
+- office-addin-debugging
+- office-addin-dev-certs
+- office-addin-lint
+- office-addin-manifest
+- office-addin-prettier-config
+- os-browserify
+- process
+- source-map-loader
+- webpack
+- webpack-cli
+- webpack-dev-server
+
+## Adding a new module or lesson
+
+To add a new lesson or module, follow these steps:
+
+1. Create a new lesson JavaScript file in:
+   - [excel_training/assets/lessons](excel_training/assets/lessons)
+   - Use the naming convention: `assets/lessons/<module-id>.js`
+
+2. Add a new entry to the LESSONS array in:
+   - [excel_training/src/taskpane/taskpane.html](excel_training/src/taskpane/taskpane.html)
+
+   Example:
+
+   ```js
+   { id: "my-module", title: "My New Module", ready: true }
+   ```
+
+3. Reorder lessons by changing the order of entries in the LESSONS array.
+   - The first item appears first in the list.
+   - The order of the array controls the display order.
+
+4. Change the lesson status by updating the `ready` value:
+   - `true` = the lesson is ready and clickable
+   - `false` = the lesson appears as "Coming soon" and is not clickable
+
+5. Keep the filename and the `id` value aligned.
+   - If the lesson id is `my-module`, the file should be named `my-module.js`.
+
+## Testing the training content
+
+### Excel
+
+1. Open the pane and confirm the lesson list appears correctly.
+2. Open a lesson and try the Tutorial mode first.
+3. Then switch to Assignment mode and complete the checklist.
+4. Confirm that the live-checking behavior updates as expected while you edit the workbook.
+
+### Word
+
+The manifest can support both Excel and Word. When you run the add-in, you may be asked to choose the host application. That is expected.
+
+Only the Word editing lesson is currently available for Word. It uses the same basic tutorial-and-assignment structure as the Excel lessons, but with Word-specific logic.
+
+### PowerPoint
+
+The manifest now lists Excel, Word, and PowerPoint. Only "Building Your Deck" is built for PowerPoint so far (`lessons/ppt-build.js`), and it is deliberately smaller than the Excel and Word lessons for two practical reasons:
+
+1. No reliable live event exists on this host. Excel has `onChanged` for value and formatting changes, and Word has `onParagraphChanged` and `onParagraphAdded` for content changes. PowerPoint has neither. The related event `Office.EventType.DocumentSelectionChanged` only fires on selection changes, not content edits, and Microsoft has an open issue showing that it is unreliable across recent PowerPoint versions. In practice, live-checking here is a 2.5-second poll doing most of the work rather than a fast event-driven system.
+2. The text-reading API is the least certain part of the implementation without real-world testing. `slideHasText()` in `ppt-build.js` searches every shape on a slide for matching text rather than assuming a specific title placeholder, which is safer than guessing shape order but still the part most likely to need adjustment if something does not behave as expected. If a title-text check does not tick, that function is the first place to inspect.
+
+By contrast, `slides.add()` and slide deletion are both well documented and should work reliably.
+
+## Notes and caveats
+
+- The task pane loads lesson files dynamically at runtime.
+- The file name and the `id` in the LESSONS array should match exactly.
+- If you change webpack settings or add new assets, restart the app with `npm start`.
+- Live checking is enabled by default, but some host-specific behavior may differ slightly between Excel and Word.
+- Fill-color and other formatting checks can be sensitive to Excel API behavior when a value is empty or unset.
+
