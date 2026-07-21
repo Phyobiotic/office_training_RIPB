@@ -42,7 +42,6 @@ npm run start:ppt
 - [excel_training/src/taskpane/taskpane.html](excel_training/src/taskpane/taskpane.html) — the main task pane shell and lesson list
 - [excel_training/assets/lessons](excel_training/assets/lessons) — lesson JavaScript files loaded dynamically at runtime
 
-
 ## Dependencies
 
 ### Runtime dependencies
