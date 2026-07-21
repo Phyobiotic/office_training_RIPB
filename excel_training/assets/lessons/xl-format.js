@@ -6,6 +6,17 @@
 
 window.LESSON_MODULES = window.LESSON_MODULES || {};
 
+// Excel's default font has changed over time (Calibri for years, Aptos/Aptos
+// Narrow on newer Microsoft 365 builds) and varies by install — so "did they
+// change the font" can't safely check against one hardcoded name. This checks
+// against every default name we know of instead of guessing which one a given
+// machine has.
+const DEFAULT_FONT_NAMES = ["calibri", "aptos", "aptos narrow", "aptos display", "aptos serif", "aptos mono"];
+function isDefaultFontName(name) {
+  const n = (name || "").toLowerCase().trim();
+  return DEFAULT_FONT_NAMES.includes(n);
+}
+
 window.LESSON_MODULES["xl-format"] = {
   title: "Formatting Cells and Sheet Structure",
 
@@ -18,7 +29,7 @@ window.LESSON_MODULES["xl-format"] = {
     steps: [
       {
         title: "Font size and font face",
-        teach: `A title should look like a title. Select the cell, then use the <b>font size</b> box and the <b>font name</b> box on the Home tab (top-left, near Bold).<br><br><b>A1</b> holds a heading in the plain default font. Make it at least <b>20pt</b> and change it to any font that <i>isn't</i> the default (Calibri).`,
+        teach: `A title should look like a title. Select the cell, then use the <b>font size</b> box and the <b>font name</b> box on the Home tab (top-left, near Bold).<br><br><b>A1</b> holds a heading in the plain default font. Make it at least <b>20pt</b> and change it to any font that isn't whatever your default already is.`,
         done: "Bigger size + a chosen font = it reads as a heading, not just another cell.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -30,7 +41,7 @@ window.LESSON_MODULES["xl-format"] = {
           const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1");
           r.format.font.load("size,name");
           await context.sync();
-          return r.format.font.size >= 20 && r.format.font.name.toLowerCase() !== "calibri";
+          return r.format.font.size >= 20 && !isDefaultFontName(r.format.font.name);
         })
       },
 
@@ -149,7 +160,7 @@ window.LESSON_MODULES["xl-format"] = {
           const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1");
           r.format.font.load("size,name");
           await context.sync();
-          return r.format.font.size >= 22 && r.format.font.name.toLowerCase() !== "calibri";
+          return r.format.font.size >= 22 && !isDefaultFontName(r.format.font.name);
         }) },
 
       { ref: "3.3.1 / 3.3.3", text: "Two guests are double-booked (Mr. Tan Kok Wei and Ms. Grace Ong each appear twice). Select and delete both duplicate rows.",
