@@ -41,7 +41,6 @@ npm run start:ppt
 - [manifest.xml](manifest.xml) — the add-in manifest
 - [excel_training/src/taskpane/taskpane.html](excel_training/src/taskpane/taskpane.html) — the main task pane shell and lesson list
 - [excel_training/assets/lessons](excel_training/assets/lessons) — lesson JavaScript files loaded dynamically at runtime
-- [excel_training/src/taskpane/lessons](excel_training/src/taskpane/lessons) — the source location used for lesson modules in the project layout
 
 ## Dependencies
 
