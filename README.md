@@ -9,7 +9,7 @@ A simple Office Add-in training project for Excel and Word, with lesson modules 
 Make sure you have:
 
 - Node.js and npm installed
-- Microsoft Excel (and optionally Word) installed for testing
+- Microsoft Excel, Word and Powerpoint installed for testing
 
 ### 2. Install dependencies
 
