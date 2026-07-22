@@ -16,7 +16,7 @@ Make sure you have:
 From the project root, run:
 
 ```bash
-cd excel_training
+cd all_files
 npm install
 ```
 
@@ -25,7 +25,7 @@ npm install
 Start the local development server with one of these commands:
 
 ```bash
-cd excel_training
+cd all_files
 npm start
 npm run start:excel
 npm run start:word
@@ -39,8 +39,8 @@ npm run start:ppt
 ## Project structure
 
 - [manifest.xml](manifest.xml) — the add-in manifest
-- [excel_training/src/taskpane/taskpane.html](excel_training/src/taskpane/taskpane.html) — the main task pane shell and lesson list
-- [excel_training/assets/lessons](excel_training/assets/lessons) — lesson JavaScript files loaded dynamically at runtime
+- [all_files/src/taskpane/taskpane.html](all_files/src/taskpane/taskpane.html) — the main task pane shell and lesson list
+- [all_files/assets/lessons](all_files/assets/lessons) — lesson JavaScript files loaded dynamically at runtime
 
 ## Dependencies
 
@@ -80,11 +80,11 @@ npm run start:ppt
 To add a new lesson or module, follow these steps:
 
 1. Create a new lesson JavaScript file in:
-   - [excel_training/assets/lessons](excel_training/assets/lessons)
+   - [all_files/assets/lessons](all_files/assets/lessons)
    - Use the naming convention: `assets/lessons/<module-id>.js`
 
 2. Add a new entry to the LESSONS array in:
-   - [excel_training/src/taskpane/taskpane.html](excel_training/src/taskpane/taskpane.html)
+   - [all_files/src/taskpane/taskpane.html](all_files/src/taskpane/taskpane.html)
 
    Example:
 
