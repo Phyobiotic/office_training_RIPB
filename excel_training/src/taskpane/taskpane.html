@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=Edge">
-<title>ICDL Application Essentials</title>
+<title>RIPB Office Training</title>
 <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -86,9 +86,7 @@
   .teach code{background:#E4EDE9;padding:0 3px;font-family:"IBM Plex Mono",monospace;font-size:11px}
   .teach .keys{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink)}
   
-  .load-reminder{font-size:11px;color:var(--muted);margin-bottom:4px}
-  
-  .stepresult{min-height:20px;font-size:12.5px;font-family:"Space Grotesk",sans-serif;color:var(--good);margin-top:4px}
+.stepresult{min-height:20px;font-size:12.5px;font-family:"Space Grotesk",sans-serif;color:var(--good);margin-top:4px}
   .stepresult.ok{padding:8px 10px;background:var(--good);color:#fff}
   .done-banner{margin-top:10px;padding:10px;font-family:"Space Grotesk",sans-serif;font-size:12.5px;background:var(--ink);color:var(--paper);display:none}
   .done-banner.show{display:block}
@@ -116,10 +114,13 @@ const LESSONS = [
 ];
 
 let currentHost = null;
+let currentLessonId = null;
 let activeMode = "tutorial";
-let renderToken = 0;          
-let liveHandlerInfo = null;   
+let renderToken = 0;
+let liveHandlerInfo = null;
 let debounceTimer = null;
+let loadedAssignments = new Set(); // lesson ids whose assignment scenario has already been auto-loaded this visit
+let preparedTutorials = new Set(); // lesson ids whose tutorial working area has already been reset this visit
 window.LESSON_MODULES = window.LESSON_MODULES || {};
 
 Office.onReady((info) => {
@@ -137,7 +138,7 @@ function renderLessonList(){
 
   const pane = document.getElementById("pane");
   pane.innerHTML = "";
-  pane.appendChild(el(`<div class="eyebrow">ICDL Application Essentials</div>`));
+  pane.appendChild(el(`<div class="eyebrow">RIPB Office Training</div>`));
   pane.appendChild(el(`<h1>Lessons</h1>`));
   pane.appendChild(el(`<div class="hostbar"><span class="dot"></span>Connected to ${escapeHtml(currentHost||"Office")}</div>`));
 
@@ -157,6 +158,8 @@ function renderLessonList(){
 
 /* ---------------- dynamic lesson loading ---------------- */
 function openLesson(id){
+  loadedAssignments.delete(id); // reopening from the lesson list is a deliberate fresh start
+  preparedTutorials.delete(id);
   if(window.LESSON_MODULES[id]){ activeMode="tutorial"; drawLessonShell(id); return; }
   const path = `assets/lessons/${id}.js`;
   const s = document.createElement("script");
@@ -174,6 +177,7 @@ function openLesson(id){
 
 /* ---------------- generic tutorial/assignment engine ---------------- */
 function drawLessonShell(id){
+  currentLessonId = id;
   const mod = window.LESSON_MODULES[id];
   const pane = document.getElementById("pane");
   pane.innerHTML = "";
@@ -234,11 +238,7 @@ async function renderTutorial(data, container){
       </div>`));
     stepWrap.appendChild(el(`<h3 class="steptitle">${escapeHtml(step.title)}</h3>`));
     stepWrap.appendChild(el(`<div class="teach">${step.teach}</div>`));
-    
-    if(stepIdx > 0){
-      stepWrap.appendChild(el(`<div class="load-reminder">You must load this step for auto-checking to happen:</div>`));
-    }
-    stepWrap.appendChild(el(`<button class="block" id="btnStepLoad">Load this step</button>`));
+    stepWrap.appendChild(el(`<button class="block" id="btnStepReset">Start this tutorial over</button>`));
     stepWrap.appendChild(el(`<div class="livebar" id="liveBar" style="border:0;background:none;padding:0;margin:0 0 10px;display:block"><span class="dot" id="liveDot" style="display:none"></span><span id="liveLabel">Checking for changes...</span></div>`));
     stepWrap.appendChild(el(`<div class="stepresult" id="stepResult"></div>`));
     stepWrap.appendChild(el(`<div class="status" id="statusMsg"></div>`));
@@ -246,27 +246,34 @@ async function renderTutorial(data, container){
     document.getElementById("stepPrev").onclick = async ()=>{ if(stepIdx>0){ stepIdx--; await teardownLiveChecking(); drawStep(); } };
     document.getElementById("stepNext").onclick = async ()=>{ if(stepIdx<steps.length-1){ stepIdx++; await teardownLiveChecking(); drawStep(); } };
 
-    let stepLoaded = false;
-
-    document.getElementById("btnStepLoad").onclick = async ()=>{
-      setStatus("Loading…");
+    document.getElementById("btnStepReset").onclick = async ()=>{
+      setStatus("Resetting…");
       try{
+        preparedTutorials.delete(currentLessonId);
+        if(data.prepare){ await data.prepare(); preparedTutorials.add(currentLessonId); }
         await step.setup();
-        setStatus("Loaded — now try it in the sheet.");
+        setStatus("Reset — try it again in the sheet.");
         markStep(false);
         await runStepCheck();
-        if(!stepLoaded){
-          await registerLiveChecking(()=>{ if(myToken===renderToken) runStepCheck(); }, myToken);
-          stepLoaded = true;
-        }
-      }catch(err){ setStatus("Couldn't load: "+err.message, true); }
+      }catch(err){ setStatus("Couldn't reset: "+err.message, true); }
     };
 
-    if(stepIdx === 0){
+    // A one-time data.prepare() clears the working area on first entry into
+    // this tutorial; after that, each step's setup() only adds what that
+    // step needs and never disturbs earlier steps' work (see lesson files),
+    // so it's safe to run setup() automatically on every step, in either
+    // direction — no "load this step" click required to start checking.
+    setStatus("Loading…");
+    try{
+      if(data.prepare && !preparedTutorials.has(currentLessonId)){
+        await data.prepare();
+        preparedTutorials.add(currentLessonId);
+      }
+      await step.setup();
+      setStatus("Ready — try it in the sheet.");
+      await runStepCheck();
       await registerLiveChecking(()=>{ if(myToken===renderToken) runStepCheck(); }, myToken);
-      stepLoaded = true;
-      runStepCheck();
-    }
+    }catch(err){ setStatus("Couldn't load: "+err.message, true); }
 
     async function runStepCheck(){
       if(myToken !== renderToken) return;
@@ -297,10 +304,7 @@ function renderAssignment(data, container){
   container.innerHTML = "";
   container.appendChild(el(`<p class="sub">${escapeHtml(data.hook)}</p>`));
   container.appendChild(el(`<div class="brief">${escapeHtml(data.brief)}</div>`));
-  
-  // Added load-reminder note above the button
-  container.appendChild(el(`<div class="load-reminder">You must load starter data for auto-checking to happen:</div>`));
-  container.appendChild(el(`<button class="block" id="btnSetup">Load starter data</button>`));
+  container.appendChild(el(`<button class="block" id="btnSetup">Reset scenario</button>`));
   container.appendChild(el(`<div class="livebar" id="liveBar" style="border:0;background:none;padding:0;margin:0 0 10px;display:block"><span class="dot" id="liveDot" style="display:none"></span><span id="liveLabel">Checking for changes...</span></div>`));
   container.appendChild(el(`<div class="prog-label" id="progText">0 of ${data.tasks.length} done</div>`));
   container.appendChild(el(`<div class="prog-track"><div class="prog-fill" id="progFill"></div></div>`));
@@ -347,23 +351,30 @@ function renderAssignment(data, container){
     debounceTimer = setTimeout(runAllChecks, delayMs); 
   }
 
-  let assignmentLoaded = false;
-
   document.getElementById("btnSetup").onclick = async ()=>{
-    setStatus("Loading starter data…");
-    try{ 
-      await data.setup(); 
-      setStatus("Starter data loaded — now complete the tasks below."); 
-      await runAllChecks(); 
-      
-      // Start polling and event handlers ONLY after clicking "Load starter data"
-      if(!assignmentLoaded){
-        await registerLiveChecking(debouncedRecheck, myToken);
-        assignmentLoaded = true;
-      }
+    setStatus("Resetting scenario…");
+    try{
+      await data.setup();
+      setStatus("Scenario reset — starter data reloaded.");
+      await runAllChecks();
     }
-    catch(err){ setStatus("Couldn't load starter data: "+err.message, true); }
+    catch(err){ setStatus("Couldn't reset scenario: "+err.message, true); }
   };
+
+  // Auto-load once per visit to this lesson (see openLesson) so switching
+  // between Tutorial/Assignment mode doesn't wipe progress on every toggle.
+  (async ()=>{
+    if(!loadedAssignments.has(currentLessonId)){
+      setStatus("Loading starter data…");
+      try{
+        await data.setup();
+        loadedAssignments.add(currentLessonId);
+        setStatus("Starter data loaded — now complete the tasks below.");
+      }catch(err){ setStatus("Couldn't load starter data: "+err.message, true); return; }
+    }
+    await runAllChecks();
+    await registerLiveChecking(debouncedRecheck, myToken);
+  })();
 }
 /* ---------------- live checking ---------------- */
 async function registerLiveChecking(onFire, myToken){

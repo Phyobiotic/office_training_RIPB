@@ -46,19 +46,25 @@ window.LESSON_MODULES["ppt-build"] = {
   title: "Building Your Deck",
 
   /* ======================================================================
-     TUTORIAL — one mechanic per step
+     TUTORIAL — one mechanic per step, same deck all the way through
      ====================================================================== */
   tutorial: {
-    hook: "The basic moves for assembling any deck. Each step resets the presentation to a small, focused starting point.",
+    hook: "The basic moves for assembling any deck. It's the same presentation the whole way through — what you add or delete in one step is still there in the next.",
+
+    // Runs once, on first entry into this tutorial — starts the deck at a
+    // single blank slide. After that, no step ever resets slide count; each
+    // step's setup() only tops up a precondition it needs (and only if
+    // missing), so earlier steps' slides/titles survive navigating around.
+    prepare: async () => PowerPoint.run(async (context) => {
+      await resetToSingleBlankSlide(context);
+    }),
 
     steps: [
       {
         title: "Insert a new slide",
         teach: `<b>Home tab → New Slide</b> (or right-click in the slide thumbnail panel on the left → New Slide) adds a blank slide after the current one.<br><br>This presentation currently has just one slide. Add a second one.`,
         done: "New Slide (Home tab, or right-click the thumbnail panel) adds one after the current slide.",
-        setup: async () => PowerPoint.run(async (context) => {
-          await resetToSingleBlankSlide(context);
-        }),
+        setup: async () => {},
         check: async () => PowerPoint.run(async (context) => {
           const slides = context.presentation.slides;
           slides.load("items");
@@ -69,29 +75,32 @@ window.LESSON_MODULES["ppt-build"] = {
 
       {
         title: "Delete a slide",
-        teach: `Right-click a slide's thumbnail on the left → <b>Delete Slide</b>. Everything after it shifts up to fill the gap.<br><br>This presentation has three slides — the last one was added by mistake. Delete it.`,
+        teach: `Right-click a slide's thumbnail on the left → <b>Delete Slide</b>. Everything after it shifts up to fill the gap.<br><br>You should have two slides now from the last step. Delete one of them, leaving just one.`,
         done: "Right-click the thumbnail → Delete Slide.",
         setup: async () => PowerPoint.run(async (context) => {
-          await resetToSingleBlankSlide(context);
-          context.presentation.slides.add();
-          context.presentation.slides.add();
+          // Precondition only — tops up to 2 slides if arrived at directly,
+          // but never trims an existing count back down.
+          const slides = context.presentation.slides;
+          slides.load("items");
           await context.sync();
+          if(slides.items.length < 2){
+            context.presentation.slides.add();
+            await context.sync();
+          }
         }),
         check: async () => PowerPoint.run(async (context) => {
           const slides = context.presentation.slides;
           slides.load("items");
           await context.sync();
-          return slides.items.length === 2;
+          return slides.items.length === 1;
         })
       },
 
       {
         title: "Add a title",
-        teach: `Click directly into the title placeholder on the slide (the big text box near the top) and type. It works like any text box — click, type, done.<br><br>Type <code>Founders' Day Pitch</code> into this slide's title.`,
+        teach: `Click directly into the title placeholder on the slide (the big text box near the top) and type. It works like any text box — click, type, done.<br><br>Type <code>Founders' Day Pitch</code> into the first slide's title.`,
         done: "Click the placeholder, type — same as any text box.",
-        setup: async () => PowerPoint.run(async (context) => {
-          await resetToSingleBlankSlide(context);
-        }),
+        setup: async () => {},
         check: async () => PowerPoint.run(async (context) => {
           const slides = context.presentation.slides;
           slides.load("items");

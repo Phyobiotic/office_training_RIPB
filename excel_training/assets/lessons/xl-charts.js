@@ -3,19 +3,66 @@
 // — the Excel JS API can't observe print-preview or printing (host-UI actions,
 // not document state). Left as instructor-verified. See note at file end.
 //
-// tutorial = stepper (one mechanic per step)
+// tutorial = stepper, but a CONTINUOUS one: `prepare()` resets the working
+// area once on first entry into the tutorial; every step's own `setup()`
+// after that is purely additive (only fills in a precondition if it's
+// missing) and never deletes the chart the student is building. So the
+// same chart carries forward from "insert a chart" through title, legend,
+// and resize — no re-loading a fresh chart per step.
 // assignment = one scenario, full checklist
 
 window.LESSON_MODULES = window.LESSON_MODULES || {};
+
+const XL_CHARTS_DATA = [
+  ["Beach Cleanup", 18], ["Elderly Home Visit", 9],
+  ["Blood Donation Drive", 6], ["Reading Buddies", 12], ["Litter Patrol", 7]
+];
+
+async function xlChartsEnsureData(context, sheet){
+  const dataRange = sheet.getRange("A1:B5");
+  dataRange.load("values");
+  await context.sync();
+  const hasData = dataRange.values.some(row => row[0]);
+  if(!hasData){
+    dataRange.values = XL_CHARTS_DATA;
+    await context.sync();
+  }
+}
+
+// Only auto-creates the chart if none exists yet (e.g. a student jumping
+// straight to a later step) — if the student already built one in the
+// "Insert a chart" step, this leaves it completely alone.
+async function xlChartsEnsureChart(context, sheet){
+  await xlChartsEnsureData(context, sheet);
+  const charts = sheet.charts;
+  charts.load("count");
+  await context.sync();
+  if(charts.count === 0){
+    const chart = sheet.charts.add(Excel.ChartType.columnClustered, sheet.getRange("A1:B5"), Excel.ChartSeriesBy.columns);
+    chart.legend.visible = false;
+    chart.height = 180;
+    chart.width = 300;
+    await context.sync();
+  }
+}
 
 window.LESSON_MODULES["xl-charts"] = {
   title: "Charts and Outputs",
 
   /* ======================================================================
-     TUTORIAL — one chart operation per step
+     TUTORIAL — one chart, built up one piece per step
      ====================================================================== */
   tutorial: {
-    hook: "A chart turns a column of numbers into something readable at a glance. Each step builds up one piece of a good chart.",
+    hook: "A chart turns a column of numbers into something readable at a glance. Each step builds up one more piece of the same chart.",
+
+    prepare: async () => Excel.run(async (context) => {
+      const sheet = context.workbook.worksheets.getActiveWorksheet();
+      sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
+      sheet.charts.load("items");
+      await context.sync();
+      sheet.charts.items.forEach(c => c.delete());
+      await context.sync();
+    }),
 
     steps: [
       {
@@ -24,17 +71,7 @@ window.LESSON_MODULES["xl-charts"] = {
         done: "Select data + labels, Insert → chart. That's the core move.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          // delete any charts left over from a previous step
-          sheet.charts.load("items");
-          await context.sync();
-          sheet.charts.items.forEach(c => c.delete());
-          await context.sync();
-          sheet.getRange("A1:B5").values = [
-            ["Beach Cleanup", 18], ["Elderly Home Visit", 9],
-            ["Blood Donation Drive", 6], ["Reading Buddies", 12], ["Litter Patrol", 7]
-          ];
-          await context.sync();
+          await xlChartsEnsureData(context, sheet);
         }),
         check: async () => Excel.run(async (context) => {
           const charts = context.workbook.worksheets.getActiveWorksheet().charts;
@@ -46,18 +83,11 @@ window.LESSON_MODULES["xl-charts"] = {
 
       {
         title: "Give it a real title",
-        teach: `The default title just says "Chart Title" — useless to anyone reading it cold. <b>Click that placeholder text</b> on the chart and retype something a stranger would understand.<br><br>A chart's already here. Click its title and rename it to something meaningful (anything but the default).`,
+        teach: `The default title just says "Chart Title" — useless to anyone reading it cold. <b>Click that placeholder text</b> on the chart and retype something a stranger would understand.<br><br>The chart you just inserted is still here. Click its title and rename it to something meaningful (anything but the default).`,
         done: "A title should explain the chart to someone who's never seen your data.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.charts.load("items");
-          await context.sync();
-          sheet.charts.items.forEach(c => c.delete());
-          await context.sync();
-          sheet.getRange("A1:B4").values = [["Beach Cleanup", 18], ["Elderly Home Visit", 9], ["Reading Buddies", 12]];
-          const chart = sheet.charts.add(Excel.ChartType.columnClustered, sheet.getRange("A1:B4"), Excel.ChartSeriesBy.columns);
-          await context.sync();
+          await xlChartsEnsureChart(context, sheet);
         }),
         check: async () => Excel.run(async (context) => {
           const charts = context.workbook.worksheets.getActiveWorksheet().charts;
@@ -74,19 +104,11 @@ window.LESSON_MODULES["xl-charts"] = {
 
       {
         title: "Turn on the legend",
-        teach: `A <b>legend</b> is the little key showing which colour means what. On a single-series chart it's often hidden by default. Click the chart, hit the <b>"+" (Chart Elements)</b> button that appears beside it, and tick <b>Legend</b>.<br><br>Switch the legend on for the chart here.`,
+        teach: `A <b>legend</b> is the little key showing which colour means what. On a single-series chart it's often hidden by default. Click the chart, hit the <b>"+" (Chart Elements)</b> button that appears beside it, and tick <b>Legend</b>.<br><br>Same chart as before — switch its legend on.`,
         done: "The '+' button beside a selected chart toggles elements like the legend on and off.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.charts.load("items");
-          await context.sync();
-          sheet.charts.items.forEach(c => c.delete());
-          await context.sync();
-          sheet.getRange("A1:B4").values = [["Beach Cleanup", 18], ["Elderly Home Visit", 9], ["Reading Buddies", 12]];
-          const chart = sheet.charts.add(Excel.ChartType.columnClustered, sheet.getRange("A1:B4"), Excel.ChartSeriesBy.columns);
-          chart.legend.visible = false;
-          await context.sync();
+          await xlChartsEnsureChart(context, sheet);
         }),
         check: async () => Excel.run(async (context) => {
           const charts = context.workbook.worksheets.getActiveWorksheet().charts;
@@ -102,20 +124,11 @@ window.LESSON_MODULES["xl-charts"] = {
 
       {
         title: "Resize it",
-        teach: `The default chart is small. Click it once to select it (handles appear at the corners), then <b>drag a corner handle</b> outward to enlarge it — corners keep the proportions, edges stretch.<br><br>Make the chart here noticeably bigger.`,
+        teach: `The default chart is small. Click it once to select it (handles appear at the corners), then <b>drag a corner handle</b> outward to enlarge it — corners keep the proportions, edges stretch.<br><br>Make the same chart noticeably bigger.`,
         done: "Drag a corner handle to resize — corners keep proportions, edges distort.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.charts.load("items");
-          await context.sync();
-          sheet.charts.items.forEach(c => c.delete());
-          await context.sync();
-          sheet.getRange("A1:B4").values = [["Beach Cleanup", 18], ["Elderly Home Visit", 9], ["Reading Buddies", 12]];
-          const chart = sheet.charts.add(Excel.ChartType.columnClustered, sheet.getRange("A1:B4"), Excel.ChartSeriesBy.columns);
-          chart.height = 180;
-          chart.width = 300;
-          await context.sync();
+          await xlChartsEnsureChart(context, sheet);
         }),
         check: async () => Excel.run(async (context) => {
           const charts = context.workbook.worksheets.getActiveWorksheet().charts;

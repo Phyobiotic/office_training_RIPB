@@ -3,12 +3,15 @@
 //
 // TWO DIFFERENT SHAPES in this file, on purpose:
 //
-//   tutorial: { hook, steps: [ {title, teach, setup, check, done}, ... ] }
-//     A walkthrough. Each step teaches ONE mechanic in isolation and has
-//     its own load state — pressing "Load this step" wipes and re-seeds a
-//     tiny focused demo. Steps do NOT build on each other, so a student can
-//     jump around and nothing breaks. `teach` is HTML shown in the panel
-//     explaining how to do the thing; `check` confirms they did it.
+//   tutorial: { hook, prepare, steps: [ {title, teach, setup, check, done}, ... ] }
+//     A walkthrough, but a CONTINUOUS one: `prepare()` clears the sheet once
+//     on first entry into the tutorial. Each step then lives in its own
+//     non-overlapping patch of cells, and its `setup()` only seeds that
+//     patch if it's still empty — so it never overwrites what an earlier
+//     (or later) step already left there. A student can jump around in any
+//     order and still see every earlier step's work still on the sheet.
+//     `teach` is HTML shown in the panel explaining how to do the thing;
+//     `check` confirms they did it.
 //
 //   assignment: { hook, brief, doneMsg, setup, tasks: [ {ref,text,hint,check} ] }
 //     One realistic scenario, one load, the full checklist at once. This is
@@ -20,10 +23,16 @@ window.LESSON_MODULES["xl-data"] = {
   title: "Entering and Managing Data",
 
   /* ======================================================================
-     TUTORIAL — one mechanic per step, each self-contained
+     TUTORIAL — one mechanic per step, each in its own patch of the sheet
      ====================================================================== */
   tutorial: {
-    hook: "Five quick things you'll do to almost every sheet. Each one loads its own little practice patch — do them in any order.",
+    hook: "Five quick things you'll do to almost every sheet. Each lives in its own patch of the sheet, so earlier ones stay right where you left them as you move on — jump around in any order.",
+
+    prepare: async () => Excel.run(async (context) => {
+      const sheet = context.workbook.worksheets.getActiveWorksheet();
+      sheet.getRange("A1:N20").clear(Excel.ClearApplyTo.all);
+      await context.sync();
+    }),
 
     steps: [
       {
@@ -32,9 +41,13 @@ window.LESSON_MODULES["xl-data"] = {
         done: "Drag copies by default — Fill Series (from that little icon) is what actually counts up.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1").values = [[1]];
+          const r = sheet.getRange("A1");
+          r.load("values");
           await context.sync();
+          if (!r.values[0][0]) {
+            r.values = [[1]];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
           const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1:A6");
@@ -46,17 +59,27 @@ window.LESSON_MODULES["xl-data"] = {
 
       {
         title: "Copy a value down",
-        teach: `Sometimes you don't want a series — you want the <i>same</i> value repeated. Autofill does that too, and for text this is actually the default (no extra click needed, unlike numbers): drag the fill handle and it just copies straight down.<br><br>Column A lists five prefects on patrol. <b>B1</b> already says <code>Gate</code>. Drag its fill handle down to <b>B5</b> so every one of them is assigned to Gate duty.`,
+        teach: `Sometimes you don't want a series — you want the <i>same</i> value repeated. Autofill does that too, and for text this is actually the default (no extra click needed, unlike numbers): drag the fill handle and it just copies straight down.<br><br>Column C lists five prefects on patrol. <b>D1</b> already says <code>Gate</code>. Drag its fill handle down to <b>D5</b> so every one of them is assigned to Gate duty.`,
         done: "Text copies straight down on drag — no series involved, no extra click needed.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1:A5").values = [["Aidan Tan"], ["Priya Sharma"], ["Rachel Lim"], ["Zul Hakim"], ["Farah Aziz"]];
-          sheet.getRange("B1").values = [["Gate"]];
+          const names = sheet.getRange("C1:C5");
+          names.load("values");
           await context.sync();
+          if (!names.values.some(row => row[0])) {
+            names.values = [["Aidan Tan"], ["Priya Sharma"], ["Rachel Lim"], ["Zul Hakim"], ["Farah Aziz"]];
+            await context.sync();
+          }
+          const gate = sheet.getRange("D1");
+          gate.load("values");
+          await context.sync();
+          if (!gate.values[0][0]) {
+            gate.values = [["Gate"]];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
-          const r = context.workbook.worksheets.getActiveWorksheet().getRange("B1:B5");
+          const r = context.workbook.worksheets.getActiveWorksheet().getRange("D1:D5");
           r.load("values");
           await context.sync();
           return r.values.every(row => row[0] === "Gate");
@@ -65,20 +88,24 @@ window.LESSON_MODULES["xl-data"] = {
 
       {
         title: "Select a block in one drag",
-        teach: `To format or move several cells at once, select them together first. Click the top-left cell and <b>drag to the bottom-right</b> — the whole rectangle highlights.<br><br>Select the block <b>A1:C3</b> (all nine cells) in a single drag, then make them <b>bold</b> — <span class="keys">Ctrl/Cmd + B</span>.`,
+        teach: `To format or move several cells at once, select them together first. Click the top-left cell and <b>drag to the bottom-right</b> — the whole rectangle highlights.<br><br>Select the block <b>F1:H3</b> (all nine cells) in a single drag, then make them <b>bold</b> — <span class="keys">Ctrl/Cmd + B</span>.`,
         done: "One drag selects a whole block; formatting hits all of it at once.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1:C3").values = [
-            ["Aidan", "Priya", "Rachel"],
-            ["Zul", "Farah", "Meera"],
-            ["Divya", "Kai", "Jason"]
-          ];
+          const r = sheet.getRange("F1:H3");
+          r.load("values");
           await context.sync();
+          if (!r.values.some(row => row.some(v => v))) {
+            r.values = [
+              ["Aidan", "Priya", "Rachel"],
+              ["Zul", "Farah", "Meera"],
+              ["Divya", "Kai", "Jason"]
+            ];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
-          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1:C3");
+          const r = context.workbook.worksheets.getActiveWorksheet().getRange("F1:H3");
           r.format.font.load("bold");
           await context.sync();
           return r.format.font.bold === true;
@@ -87,16 +114,20 @@ window.LESSON_MODULES["xl-data"] = {
 
       {
         title: "Fix a wrong entry",
-        teach: `Editing a cell is just: click it, type the new value, press <span class="keys">Enter</span>. The old contents are replaced.<br><br><b>A1</b> says <code>Priya Sharma</code>, but this duty was actually Rachel's. Click <b>A1</b> and change it to <code>Rachel Lim</code>.`,
+        teach: `Editing a cell is just: click it, type the new value, press <span class="keys">Enter</span>. The old contents are replaced.<br><br><b>J1</b> says <code>Priya Sharma</code>, but this duty was actually Rachel's. Click <b>J1</b> and change it to <code>Rachel Lim</code>.`,
         done: "Click, retype, Enter — the cell's replaced.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1").values = [["Priya Sharma"]];
+          const r = sheet.getRange("J1");
+          r.load("values");
           await context.sync();
+          if (!r.values[0][0]) {
+            r.values = [["Priya Sharma"]];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
-          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1");
+          const r = context.workbook.worksheets.getActiveWorksheet().getRange("J1");
           r.load("values");
           await context.sync();
           return r.values[0][0] === "Rachel Lim";
@@ -105,16 +136,20 @@ window.LESSON_MODULES["xl-data"] = {
 
       {
         title: "Find & Replace",
-        teach: `When the same mistake appears many times, don't fix them one by one. <b>Home tab → Find &amp; Select → Replace</b> (or <span class="keys">Ctrl/Cmd + H</span>) swaps every match at once.<br><br>Column A has <code>Gaet</code> three times — it should be <code>Gate</code>. Open Replace, find <code>Gaet</code>, replace all with <code>Gate</code>.`,
+        teach: `When the same mistake appears many times, don't fix them one by one. <b>Home tab → Find &amp; Select → Replace</b> (or <span class="keys">Ctrl/Cmd + H</span>) swaps every match at once.<br><br>Column L has <code>Gaet</code> three times — it should be <code>Gate</code>. Open Replace, find <code>Gaet</code>, replace all with <code>Gate</code>.`,
         done: "Find & Replace fixes every copy of a mistake in one go.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1:A4").values = [["Gaet"], ["Library"], ["Gaet"], ["Gaet"]];
+          const r = sheet.getRange("L1:L4");
+          r.load("values");
           await context.sync();
+          if (!r.values.some(row => row[0])) {
+            r.values = [["Gaet"], ["Library"], ["Gaet"], ["Gaet"]];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
-          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1:A4");
+          const r = context.workbook.worksheets.getActiveWorksheet().getRange("L1:L4");
           r.load("values");
           await context.sync();
           const vals = r.values.map(row => row[0]);

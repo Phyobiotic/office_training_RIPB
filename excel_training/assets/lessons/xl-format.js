@@ -1,7 +1,13 @@
 // lessons/xl-format.js
 // Syllabus refs 3.2.1-3.2.2, 3.3.1-3.3.4.
 //
-// tutorial = stepper (one mechanic per step, each self-contained load)
+// tutorial = stepper, but a CONTINUOUS one — see xl-data.js for the pattern:
+// `prepare()` clears the sheet once on entry, each step then owns its own
+// non-overlapping patch and only seeds it if empty. The two row-mutating
+// steps ("delete a row" / "insert a row") sit in the bottom-most bands and
+// their checks search a generous, content-relative range instead of a fixed
+// address, so a row shift caused by one of them never breaks the other's
+// check or any step above them.
 // assignment = one scenario, full checklist (shape unchanged)
 
 window.LESSON_MODULES = window.LESSON_MODULES || {};
@@ -24,7 +30,13 @@ window.LESSON_MODULES["xl-format"] = {
      TUTORIAL — one mechanic per step
      ====================================================================== */
   tutorial: {
-    hook: "The moves that turn a raw grid of data into something you'd actually hand to a teacher. Each step loads its own little practice patch.",
+    hook: "The moves that turn a raw grid of data into something you'd actually hand to a teacher. Each step owns its own patch of the sheet, so nothing you've already done gets undone as you move on.",
+
+    prepare: async () => Excel.run(async (context) => {
+      const sheet = context.workbook.worksheets.getActiveWorksheet();
+      sheet.getRange("A1:N40").clear(Excel.ClearApplyTo.all);
+      await context.sync();
+    }),
 
     steps: [
       {
@@ -33,9 +45,13 @@ window.LESSON_MODULES["xl-format"] = {
         done: "Bigger size + a chosen font = it reads as a heading, not just another cell.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1").values = [["Investiture Day — VIP Guest List"]];
+          const r = sheet.getRange("A1");
+          r.load("values");
           await context.sync();
+          if (!r.values[0][0]) {
+            r.values = [["Investiture Day — VIP Guest List"]];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
           const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1");
@@ -47,16 +63,20 @@ window.LESSON_MODULES["xl-format"] = {
 
       {
         title: "Bold, italic, and combining them",
-        teach: `Formatting stacks — a cell can be bold <i>and</i> italic at once. The buttons (and shortcuts <span class="keys">Ctrl/Cmd+B</span>, <span class="keys">Ctrl/Cmd+I</span>) each toggle on or off independently.<br><br><b>A1</b> is the Guest of Honour's name. Make it <b>both bold and italic</b> so it stands out from ordinary guests.`,
+        teach: `Formatting stacks — a cell can be bold <i>and</i> italic at once. The buttons (and shortcuts <span class="keys">Ctrl/Cmd+B</span>, <span class="keys">Ctrl/Cmd+I</span>) each toggle on or off independently.<br><br><b>A3</b> is the Guest of Honour's name. Make it <b>both bold and italic</b> so it stands out from ordinary guests.`,
         done: "Bold and italic are independent toggles — stack them for real emphasis.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1").values = [["Dr. Wong Li Hua"]];
+          const r = sheet.getRange("A3");
+          r.load("values");
           await context.sync();
+          if (!r.values[0][0]) {
+            r.values = [["Dr. Wong Li Hua"]];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
-          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1");
+          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A3");
           r.format.font.load("bold,italic");
           await context.sync();
           return r.format.font.bold === true && r.format.font.italic === true;
@@ -64,58 +84,74 @@ window.LESSON_MODULES["xl-format"] = {
       },
 
       {
-        title: "Delete a whole row",
-        teach: `To remove an entire row (not just clear its contents), click the <b>row number</b> on the far left — that selects the whole row — then <b>right-click → Delete</b>. Everything below shifts up to close the gap.<br><br>Row 2 here is a duplicate of row 1. Select row 2 by its number and delete it, so only one <code>Mr. Lim Wei Jie</code> remains.`,
-        done: "Click the row number, right-click, Delete — the row's gone and the rest closes up.",
-        setup: async () => Excel.run(async (context) => {
-          const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1:A3").values = [["Mr. Lim Wei Jie"], ["Mr. Lim Wei Jie"], ["Mrs. Chandra Devi"]];
-          await context.sync();
-        }),
-        check: async () => Excel.run(async (context) => {
-          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1:A5");
-          r.load("values");
-          await context.sync();
-          const vals = r.values.map(row => row[0]);
-          return vals.filter(v => v === "Mr. Lim Wei Jie").length === 1 && vals.includes("Mrs. Chandra Devi");
-        })
-      },
-
-      {
-        title: "Insert a row",
-        teach: `Inserting is the mirror image: <b>right-click a row number → Insert</b> pushes a blank row in <i>above</i> it, shoving everything down.<br><br>You need to slot a new guest between the two names here. Right-click row 2's number, choose Insert, then type <code>Prof. Ahmad Zaki</code> into the new blank <b>A2</b>.`,
-        done: "Right-click a row number → Insert drops a blank row in above it.",
-        setup: async () => Excel.run(async (context) => {
-          const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1:A2").values = [["Datin Sarah Yusof"], ["Mrs. Chandra Devi"]];
-          await context.sync();
-        }),
-        check: async () => Excel.run(async (context) => {
-          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A1:A3");
-          r.load("values");
-          await context.sync();
-          const vals = r.values.map(row => row[0]);
-          return vals[0] === "Datin Sarah Yusof" && vals[1] === "Prof. Ahmad Zaki" && vals[2] === "Mrs. Chandra Devi";
-        })
-      },
-
-      {
         title: "Widen a column",
-        teach: `When text is cut off, widen the column: hover the boundary line between two column letters (say A and B) until the cursor becomes a double-arrow, then <b>drag right</b>. Or <b>double-click</b> that boundary to auto-fit it to the longest entry.<br><br>Column A here has a long name that's overflowing. Widen column A so it fits.`,
+        teach: `When text is cut off, widen the column: hover the boundary line between two column letters (say A and B) until the cursor becomes a double-arrow, then <b>drag right</b>. Or <b>double-click</b> that boundary to auto-fit it to the longest entry.<br><br><b>A5</b> has a long name that's overflowing. Widen column A so it fits.`,
         done: "Drag the boundary between column letters — or double-click it to auto-fit.",
         setup: async () => Excel.run(async (context) => {
           const sheet = context.workbook.worksheets.getActiveWorksheet();
-          sheet.getRange("A1:D20").clear(Excel.ClearApplyTo.all);
-          sheet.getRange("A1").values = [["Prof. Dr. Ahmad Zaki bin Abdullah"]];
+          const r = sheet.getRange("A5");
+          r.load("values");
           await context.sync();
+          if (!r.values[0][0]) {
+            r.values = [["Prof. Dr. Ahmad Zaki bin Abdullah"]];
+            await context.sync();
+          }
         }),
         check: async () => Excel.run(async (context) => {
           const r = context.workbook.worksheets.getActiveWorksheet().getRange("A:A");
           r.format.load("columnWidth");
           await context.sync();
           return r.format.columnWidth > 90;
+        })
+      },
+
+      {
+        title: "Delete a whole row",
+        teach: `To remove an entire row (not just clear its contents), click the <b>row number</b> on the far left — that selects the whole row — then <b>right-click → Delete</b>. Everything below shifts up to close the gap.<br><br>Look near row 20: <code>Mr. Lim Wei Jie</code> appears twice in a row, back to back, right above <code>Mrs. Chandra Devi</code>. Select either of his row numbers and delete it, so only one <code>Mr. Lim Wei Jie</code> remains.`,
+        done: "Click the row number, right-click, Delete — the row's gone and the rest closes up.",
+        setup: async () => Excel.run(async (context) => {
+          const sheet = context.workbook.worksheets.getActiveWorksheet();
+          const r = sheet.getRange("A20:A22");
+          r.load("values");
+          await context.sync();
+          if (!r.values.some(row => row[0])) {
+            r.values = [["Mr. Lim Wei Jie"], ["Mr. Lim Wei Jie"], ["Mrs. Chandra Devi"]];
+            await context.sync();
+          }
+        }),
+        // Searches a generous band instead of a fixed address, so a shift
+        // caused by the "insert a row" step elsewhere never breaks this.
+        check: async () => Excel.run(async (context) => {
+          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A18:A28");
+          r.load("values");
+          await context.sync();
+          const vals = r.values.map(row => row[0]).filter(v => v);
+          return vals.filter(v => v === "Mr. Lim Wei Jie").length === 1 && vals.includes("Mrs. Chandra Devi");
+        })
+      },
+
+      {
+        title: "Insert a row",
+        teach: `Inserting is the mirror image: <b>right-click a row number → Insert</b> pushes a blank row in <i>above</i> it, shoving everything down.<br><br>Near row 30, <code>Datin Sarah Yusof</code> is directly above <code>Mrs. Chandra Devi</code> — but a new guest needs slotting between them. Right-click <code>Mrs. Chandra Devi</code>'s row number, choose Insert, then type <code>Prof. Ahmad Zaki</code> into the new blank row.`,
+        done: "Right-click a row number → Insert drops a blank row in above it.",
+        setup: async () => Excel.run(async (context) => {
+          const sheet = context.workbook.worksheets.getActiveWorksheet();
+          const r = sheet.getRange("A30:A31");
+          r.load("values");
+          await context.sync();
+          if (!r.values.some(row => row[0])) {
+            r.values = [["Datin Sarah Yusof"], ["Mrs. Chandra Devi"]];
+            await context.sync();
+          }
+        }),
+        // Same content-relative approach as "delete a whole row" above.
+        check: async () => Excel.run(async (context) => {
+          const r = context.workbook.worksheets.getActiveWorksheet().getRange("A28:A38");
+          r.load("values");
+          await context.sync();
+          const vals = r.values.map(row => row[0]).filter(v => v);
+          const idx = vals.indexOf("Datin Sarah Yusof");
+          return idx !== -1 && vals[idx + 1] === "Prof. Ahmad Zaki" && vals[idx + 2] === "Mrs. Chandra Devi";
         })
       }
     ]

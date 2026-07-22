@@ -9,8 +9,21 @@
 // edits. If a formatting-only step (bold/italic) feels less "instant" than
 // the Excel lessons did, that's expected, not a bug — the poll interval is
 // what's catching it.
+//
+// CONTINUITY: a Word document is linear, so steps can't get their own
+// non-overlapping "range" the way Excel cells can. Instead, `prepare()`
+// clears the body once on entry, and each step's setup() appends its own
+// paragraph(s) to the END of the document — only if a stable marker
+// substring for that step isn't already present — so earlier steps'
+// paragraphs stay put above. Checks locate their paragraph(s) by searching
+// for that same marker text rather than assuming a fixed paragraph index,
+// since later steps keep growing the document underneath them.
 
 window.LESSON_MODULES = window.LESSON_MODULES || {};
+
+async function wordEditFindParaIndex(paras, matchFn){
+  return paras.items.findIndex(p => matchFn((p.text || "").trim()));
+}
 
 window.LESSON_MODULES["word-edit"] = {
   title: "Writing and Editing Text",
@@ -19,24 +32,34 @@ window.LESSON_MODULES["word-edit"] = {
      TUTORIAL — one mechanic per step
      ====================================================================== */
   tutorial: {
-    hook: "The everyday moves for working with text in a real document. Each step loads its own short passage.",
+    hook: "The everyday moves for working with text in a real document. It's one growing document the whole way through — each step adds its own passage below what's already there.",
+
+    prepare: async () => Word.run(async (context) => {
+      context.document.body.clear();
+      await context.sync();
+    }),
 
     steps: [
       {
         title: "Bold and italic together",
-        teach: `Select text, then <span class="keys">Ctrl/Cmd+B</span> and <span class="keys">Ctrl/Cmd+I</span> — they toggle independently, so you can stack both on the same selection.<br><br>Select the whole sentence below and make it <b>both bold and italic</b>.`,
+        teach: `Select text, then <span class="keys">Ctrl/Cmd+B</span> and <span class="keys">Ctrl/Cmd+I</span> — they toggle independently, so you can stack both on the same selection.<br><br>Select the whole sentence "<i>Founders' Day needs your help.</i>" below and make it <b>both bold and italic</b>.`,
         done: "Bold and italic stack — select once, apply both.",
         setup: async () => Word.run(async (context) => {
           const body = context.document.body;
-          body.clear();
-          body.insertParagraph("Founders' Day needs your help.", Word.InsertLocation.end);
+          body.load("text");
           await context.sync();
+          if (!body.text.includes("needs your help")) {
+            body.insertParagraph("Founders' Day needs your help.", Word.InsertLocation.end);
+            await context.sync();
+          }
         }),
         check: async () => Word.run(async (context) => {
           const paras = context.document.body.paragraphs;
-          paras.load("items");
+          paras.load("items/text");
           await context.sync();
-          const p = paras.items[0];
+          const idx = await wordEditFindParaIndex(paras, t => t === "Founders' Day needs your help.");
+          if (idx === -1) return false;
+          const p = paras.items[idx];
           p.font.load("bold,italic");
           await context.sync();
           return p.font.bold === true && p.font.italic === true;
@@ -49,9 +72,12 @@ window.LESSON_MODULES["word-edit"] = {
         done: "Click into the word, fix it, done — editing text is just that.",
         setup: async () => Word.run(async (context) => {
           const body = context.document.body;
-          body.clear();
-          body.insertParagraph("We would love you're support this year.", Word.InsertLocation.end);
+          body.load("text");
           await context.sync();
+          if (!body.text.includes("support this year")) {
+            body.insertParagraph("We would love you're support this year.", Word.InsertLocation.end);
+            await context.sync();
+          }
         }),
         check: async () => Word.run(async (context) => {
           const body = context.document.body;
@@ -63,19 +89,23 @@ window.LESSON_MODULES["word-edit"] = {
 
       {
         title: "Undo an edit",
-        teach: `<span class="keys">Ctrl/Cmd+Z</span> undoes your last action — and you can press it repeatedly to step back further.<br><br>Below is a finished sentence. Type an extra sentence after it, then undo it with Ctrl/Cmd+Z. The paragraph should end up exactly as it started.`,
+        teach: `<span class="keys">Ctrl/Cmd+Z</span> undoes your last action — and you can press it repeatedly to step back further.<br><br>Below is a finished sentence: "<i>Thank you for your generous support.</i>" Type an extra sentence right after it, then undo it with Ctrl/Cmd+Z. The paragraph should end up exactly as it started.`,
         done: "Ctrl/Cmd+Z steps backward — press it again to go back further still.",
         setup: async () => Word.run(async (context) => {
           const body = context.document.body;
-          body.clear();
-          body.insertParagraph("Thank you for your generous support.", Word.InsertLocation.end);
-          await context.sync();
-        }),
-        check: async () => Word.run(async (context) => {
-          const body = context.document.body;
           body.load("text");
           await context.sync();
-          return body.text.trim() === "Thank you for your generous support.";
+          if (!body.text.includes("generous support")) {
+            body.insertParagraph("Thank you for your generous support.", Word.InsertLocation.end);
+            await context.sync();
+          }
+        }),
+        check: async () => Word.run(async (context) => {
+          const paras = context.document.body.paragraphs;
+          paras.load("items/text");
+          await context.sync();
+          const idx = await wordEditFindParaIndex(paras, t => t.includes("generous support"));
+          return idx !== -1 && paras.items[idx].text.trim() === "Thank you for your generous support.";
         })
       },
 
@@ -85,9 +115,12 @@ window.LESSON_MODULES["word-edit"] = {
         done: "Ctrl/Cmd+H — Find & Replace fixes every instance at once.",
         setup: async () => Word.run(async (context) => {
           const body = context.document.body;
-          body.clear();
-          body.insertParagraph("Please recieve our thanks for your support.", Word.InsertLocation.end);
+          body.load("text");
           await context.sync();
+          if (!body.text.includes("thanks for your support")) {
+            body.insertParagraph("Please recieve our thanks for your support.", Word.InsertLocation.end);
+            await context.sync();
+          }
         }),
         check: async () => Word.run(async (context) => {
           const body = context.document.body;
@@ -99,21 +132,26 @@ window.LESSON_MODULES["word-edit"] = {
 
       {
         title: "Copy text to another spot",
-        teach: `Select text, <span class="keys">Ctrl/Cmd+C</span> to copy, click where it should go, <span class="keys">Ctrl/Cmd+V</span> to paste. The original stays put — copy duplicates, it doesn't move.<br><br>Copy the event name from the first line and paste it into the empty third line below, as a closing signature.`,
+        teach: `Select text, <span class="keys">Ctrl/Cmd+C</span> to copy, click where it should go, <span class="keys">Ctrl/Cmd+V</span> to paste. The original stays put — copy duplicates, it doesn't move.<br><br>Below, copy the event name from the "<code>Founders' Day 2026</code>" line and paste it into the empty line just after "<code>Dear Sponsor,</code>", as a closing signature.`,
         done: "Copy duplicates and leaves the original in place — that's the difference from cut.",
         setup: async () => Word.run(async (context) => {
           const body = context.document.body;
-          body.clear();
-          body.insertParagraph("Founders' Day 2026", Word.InsertLocation.end);
-          body.insertParagraph("Dear Sponsor,", Word.InsertLocation.end);
-          body.insertParagraph("", Word.InsertLocation.end);
+          body.load("text");
           await context.sync();
+          if (!body.text.includes("Dear Sponsor,")) {
+            body.insertParagraph("Founders' Day 2026", Word.InsertLocation.end);
+            body.insertParagraph("Dear Sponsor,", Word.InsertLocation.end);
+            body.insertParagraph("", Word.InsertLocation.end);
+            await context.sync();
+          }
         }),
         check: async () => Word.run(async (context) => {
           const paras = context.document.body.paragraphs;
           paras.load("items/text");
           await context.sync();
-          return paras.items.length >= 3 && paras.items[2].text.trim() === "Founders' Day 2026";
+          const dearIdx = await wordEditFindParaIndex(paras, t => t === "Dear Sponsor,");
+          if (dearIdx === -1) return false;
+          return paras.items.slice(dearIdx + 1).some(p => (p.text || "").trim() === "Founders' Day 2026");
         })
       }
     ]
