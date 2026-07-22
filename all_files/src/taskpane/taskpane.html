@@ -99,18 +99,18 @@
 const LESSONS = [
   { id:"foundations",   title:"Meet Your Office Toolkit",             ready:false },
   { id:"word-edit",      title:"Word: Writing and Editing Text",              ready:true },
-  { id:"word-format",    title:"Word: Formatting and Paragraphs",             ready:false },
-  { id:"word-tables",    title:"Word: Tables and Objects",                    ready:false },
-  { id:"word-output",    title:"Word: Finishing and Printing a Document",     ready:false },
+  { id:"word-format",    title:"Word: Formatting and Paragraphs",             ready:true },
+  { id:"word-tables",    title:"Word: Tables and Objects",                    ready:true },
+  { id:"word-output",    title:"Word: Finishing and Printing a Document",     ready:true },
   { id:"xl-data",        title:"Excel: Entering and Managing Data",           ready:true  },
   { id:"xl-format",      title:"Excel: Formatting Cells and Sheet Structure",  ready:true  },
   { id:"xl-formulas",    title:"Excel: Formulas & Functions",                 ready:true  },
   { id:"xl-charts",      title:"Excel: Charts and Outputs",                   ready:true  },
-  { id:"founders-day",   title:"Excel: Founders' Day Final Assignment",      ready:true  },
   { id:"ppt-build",      title:"PowerPoint: Building Your Deck",                    ready:true },
-  { id:"ppt-text",       title:"PowerPoint: Slide Text and Formatting",             ready:false },
-  { id:"ppt-objects",    title:"PowerPoint: Pictures, Objects and Transitions",     ready:false },
-  { id:"ppt-present",    title:"PowerPoint: Presenting and Printing",               ready:false },
+  { id:"ppt-text",       title:"PowerPoint: Slide Text and Formatting",             ready:true },
+  { id:"ppt-objects",    title:"PowerPoint: Pictures, Objects and Transitions",     ready:true },
+  { id:"ppt-present",    title:"PowerPoint: Presenting and Printing",               ready:true },
+  { id:"founders-day",   title:"Founders' Day — Final Assignment",           ready:true  },
 ];
 
 let currentHost = null;
@@ -251,7 +251,14 @@ async function renderTutorial(data, container){
       try{
         preparedTutorials.delete(currentLessonId);
         if(data.prepare){ await data.prepare(); preparedTutorials.add(currentLessonId); }
-        await step.setup();
+        // prepare() just wiped the whole working area, so re-running only the
+        // CURRENT step's setup() would lose every earlier step's accumulated
+        // content. Replay every step from the start up through this one, in
+        // order, so the document ends up exactly as it would if navigated
+        // here normally.
+        for(let i = 0; i <= stepIdx; i++){
+          await steps[i].setup();
+        }
         setStatus("Reset — try it again in the sheet.");
         markStep(false);
         await runStepCheck();
