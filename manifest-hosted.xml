@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xsi:type="TaskPaneApp">
+
+  <!-- Keep whichever <Id> your `yo office` scaffold already generated —
+       the exact GUID doesn't matter for local sideloading, it just needs
+       to stay consistent between runs so Office recognizes it as the same
+       add-in. -->
+  <Id>61D77A10-53D7-4C8C-9C1B-0F5D8C7E215E</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>ICDL Course</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="RIPB Office Training"/>
+  <Description DefaultValue="Interactive Office lessons with live document checking."/>
+  <IconUrl DefaultValue="https://phyobiotic.github.io/office_training_RIPB/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://phyobiotic.github.io/office_training_RIPB/assets/icon-64.png"/>
+  <SupportUrl DefaultValue="https://phyobiotic.github.io"/>
+
+  <AppDomains>
+    <AppDomain>https://phyobiotic.github.io</AppDomain>
+  </AppDomains>
+
+  <!-- Excel, Word, and PowerPoint all active now. office-addin-debugging
+       will prompt you to pick which host each time you run `npm start`. -->
+  <Hosts>
+    <Host Name="Workbook"/>
+    <Host Name="Document"/>
+    <Host Name="Presentation"/>
+  </Hosts>
+
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://phyobiotic.github.io/office_training_RIPB/taskpane.html"/>
+  </DefaultSettings>
+
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>
